@@ -1051,20 +1051,31 @@ export class OverlayServer {
         var params = new URLSearchParams(window.location.search);
         var targetServer = params.get('server');
         var wsUrl;
+
         if (targetServer) {
-          var trimmed = targetServer.trim().replace(/\/+$/, '');
-          if (trimmed.startsWith('ws://') || trimmed.startsWith('wss://')) {
-            wsUrl = trimmed.endsWith('/ws') ? trimmed : (trimmed + '/ws');
-          } else {
-            var proto = trimmed.startsWith('https://') ? 'wss:' : 'ws:';
-            var host = trimmed.replace(/^https?:\/\//, '');
-            wsUrl = proto + '//' + host + '/ws';
+          try {
+            var raw = targetServer.trim();
+            if (!raw.startsWith('http://') && !raw.startsWith('https://') && !raw.startsWith('ws://') && !raw.startsWith('wss://')) {
+              raw = 'https://' + raw;
+            }
+            var parsed = new URL(raw);
+            var isSec = parsed.protocol === 'https:' || parsed.protocol === 'wss:';
+            var proto = isSec ? 'wss:' : 'ws:';
+            var path = parsed.pathname || '';
+            if (path.endsWith('/')) path = path.slice(0, -1);
+            if (!path.endsWith('/ws')) path += '/ws';
+            wsUrl = proto + '//' + parsed.host + path;
+          } catch (e) {
+            console.error('[Overlay] Error parsing server param:', e);
+            var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            wsUrl = protocol + '//' + window.location.host + '/ws';
           }
         } else {
           var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
           wsUrl = protocol + '//' + window.location.host + '/ws';
         }
 
+        console.log('[Overlay] Connecting to WebSocket:', wsUrl);
         ws = new WebSocket(wsUrl);
 
         ws.onopen = function() {
