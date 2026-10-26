@@ -365,6 +365,7 @@ export const App: React.FC = () => {
         isOpen={isOverlayLinksOpen}
         onClose={() => setIsOverlayLinksOpen(false)}
         overlayPort={settings.overlayPort || 3210}
+        customBackendUrl={settings.customBackendUrl}
       />
 
       <LogDrawer

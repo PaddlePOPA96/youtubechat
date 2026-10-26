@@ -264,13 +264,15 @@ export class OverlayServer {
         if (pathname === '/api/overlay/urls') {
           const s = settingsStore.getSettings();
           const p = s.overlayPort || this.port;
+          const host = req.headers.host || `127.0.0.1:${p}`;
+          const proto = (req.headers['x-forwarded-proto'] as string) || (host.includes('localhost') || host.startsWith('127.0.0.1') ? 'http' : 'https');
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(
             JSON.stringify({
               port: p,
-              chat: `http://127.0.0.1:${p}/overlay/chat`,
-              gifts: `http://127.0.0.1:${p}/overlay/gifts`,
-              all: `http://127.0.0.1:${p}/overlay/all`,
+              chat: `${proto}://${host}/overlay/chat`,
+              gifts: `${proto}://${host}/overlay/gifts`,
+              all: `${proto}://${host}/overlay/all`,
             })
           );
           return;

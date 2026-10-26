@@ -14,23 +14,49 @@ interface OverlayLinksModalProps {
   isOpen: boolean;
   onClose: () => void;
   overlayPort: number;
+  customBackendUrl?: string;
 }
 
 export const OverlayLinksModal: React.FC<OverlayLinksModalProps> = ({
   isOpen,
   onClose,
   overlayPort,
+  customBackendUrl,
 }) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
+  const currentOrigin =
+    typeof window !== 'undefined' && window.location.origin && !window.location.origin.startsWith('file://')
+      ? window.location.origin
+      : `http://127.0.0.1:${overlayPort}`;
+
+  const isLocalHost =
+    typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  // In local desktop, default to local port. On web/Vercel/Codespaces, default to current domain!
+  const [useCurrentDomain, setUseCurrentDomain] = useState<boolean>(!isLocalHost);
+
   if (!isOpen) return null;
+
+  const backend =
+    customBackendUrl ||
+    (typeof window !== 'undefined' ? localStorage.getItem('streamchat_backend_url') : '') ||
+    '';
+
+  const activeOrigin = useCurrentDomain ? currentOrigin : `http://127.0.0.1:${overlayPort}`;
+
+  // If on Vercel or different domain, attach ?server= so the overlay connects to backend
+  const serverQuery =
+    backend && (activeOrigin.includes('vercel.app') || !activeOrigin.includes(backend.replace(/^https?:\/\//, '')))
+      ? `?server=${encodeURIComponent(backend)}`
+      : '';
 
   const links = [
     {
       key: 'chat',
       title: 'Chat Overlay (YouTube + TikTok)',
       desc: 'Menampilkan gabungan live chat transparan dengan badge YT & TT',
-      url: `http://127.0.0.1:${overlayPort}/overlay/chat`,
+      url: `${activeOrigin}/overlay/chat${serverQuery}`,
       icon: ChatBubbleLeftRightIcon,
       color: '#0085ee',
       bg: '#e0f2fe',
@@ -40,7 +66,7 @@ export const OverlayLinksModal: React.FC<OverlayLinksModalProps> = ({
       key: 'gifts',
       title: 'TikTok Gift Alert Overlay',
       desc: 'Stiker kado asli TikTok floating di layar dengan audio chime & anti-spam delay',
-      url: `http://127.0.0.1:${overlayPort}/overlay/gifts`,
+      url: `${activeOrigin}/overlay/gifts${serverQuery}`,
       icon: SparklesIcon,
       color: '#e11d48',
       bg: '#ffe4e6',
@@ -50,7 +76,7 @@ export const OverlayLinksModal: React.FC<OverlayLinksModalProps> = ({
       key: 'all',
       title: 'Combined Overlay (Chat & Gifts)',
       desc: 'Satu Browser Source untuk chat transparan dan stiker gift mengambang',
-      url: `http://127.0.0.1:${overlayPort}/overlay/all`,
+      url: `${activeOrigin}/overlay/all${serverQuery}`,
       icon: Square3Stack3DIcon,
       color: '#7c3aed',
       bg: '#ede9fe',
@@ -76,7 +102,7 @@ export const OverlayLinksModal: React.FC<OverlayLinksModalProps> = ({
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ padding: '28px' }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
               width: '38px',
@@ -102,6 +128,71 @@ export const OverlayLinksModal: React.FC<OverlayLinksModalProps> = ({
           <button onClick={onClose} className="btn btn-secondary" style={{ padding: '6px', borderRadius: '50%' }}>
             <XMarkIcon style={{ width: '16px', height: '16px' }} />
           </button>
+        </div>
+
+        {/* Domain Toggle Bar */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: '#f1f5f9',
+          border: '1px solid #e2e8f0',
+          padding: '10px 14px',
+          borderRadius: '12px',
+          marginBottom: '20px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Domain URL:</span>
+            <span style={{
+              fontSize: '11px',
+              fontFamily: 'monospace',
+              color: '#0284c7',
+              background: '#e0f2fe',
+              padding: '2px 8px',
+              borderRadius: '6px',
+              fontWeight: 600
+            }}>
+              {activeOrigin}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button
+              type="button"
+              onClick={() => setUseCurrentDomain(true)}
+              style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                padding: '4px 10px',
+                borderRadius: '8px',
+                border: '1px solid',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                background: useCurrentDomain ? '#0085ee' : '#ffffff',
+                color: useCurrentDomain ? '#ffffff' : '#64748b',
+                borderColor: useCurrentDomain ? '#0085ee' : '#cbd5e1'
+              }}
+            >
+              Domain Saat Ini
+            </button>
+            <button
+              type="button"
+              onClick={() => setUseCurrentDomain(false)}
+              style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                padding: '4px 10px',
+                borderRadius: '8px',
+                border: '1px solid',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                background: !useCurrentDomain ? '#0085ee' : '#ffffff',
+                color: !useCurrentDomain ? '#ffffff' : '#64748b',
+                borderColor: !useCurrentDomain ? '#0085ee' : '#cbd5e1'
+              }}
+            >
+              127.0.0.1 (Lokal)
+            </button>
+          </div>
         </div>
 
         {/* Links List */}
