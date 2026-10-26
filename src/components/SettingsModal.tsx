@@ -504,6 +504,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </span>
               </div>
 
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                  Backend Server URL (Khusus Vercel / Cloud Hosting)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Opsional - misal: https://my-backend.onrender.com atau https://xxxx-3210.app.github.dev"
+                  className="input-field"
+                  value={form.customBackendUrl || ''}
+                  onChange={(e) => handleChange('customBackendUrl', e.target.value)}
+                  style={{ fontSize: '12px' }}
+                />
+                <span style={{ fontSize: '11px', color: 'var(--text-faint)', marginTop: '4px', display: 'block' }}>
+                  Biarkan kosong jika dijalankan lokal/Codespaces. Isi ini jika frontend di-deploy ke Vercel agar dapat terhubung ke server stream Anda.
+                </span>
+              </div>
+
               <label style={{
                 display: 'flex',
                 alignItems: 'center',

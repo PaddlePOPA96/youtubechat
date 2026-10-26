@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>StreamChat Overlay - ALL</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden !important;
+      background: transparent !important;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Apple Color Emoji', 'Noto Color Emoji', -apple-system, BlinkMacSystemFont, sans-serif;
+      user-select: none;
+    }
+
+    #overlay-root {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      pointer-events: none;
+    }
+
+    /* CHAT CONTAINER */
+    #chat-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 16px;
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      width: 100%;
+      max-width: 460px;
+      max-height: 100vh;
+      overflow: hidden;
+    }
+
+    .chat-bubble {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      word-break: break-word;
+      opacity: 1;
+    }
+
+    .chat-bubble.anim-slide {
+      animation: slideInChat 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .chat-bubble.anim-fade {
+      animation: fadeInChat 0.35s ease forwards;
+    }
+    .chat-bubble.anim-pop {
+      animation: popInChat 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    @keyframes slideInChat {
+      from { opacity: 0; transform: translateX(-30px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes fadeInChat {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes popInChat {
+      from { opacity: 0; transform: scale(0.85); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .chat-bubble.fade-out {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.96);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+
+    .chat-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: #334155;
+      border: 1.5px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .chat-content {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .chat-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 2px;
+      flex-wrap: wrap;
+    }
+
+    .badge-yt, .badge-tt {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      color: #fff;
+      text-transform: uppercase;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    }
+    .badge-yt {
+      background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+    }
+    .badge-tt {
+      background: linear-gradient(135deg, #00f2fe 0%, #4facfe 50%, #ff007f 100%);
+      text-shadow: 0 0 4px rgba(0,0,0,0.6);
+    }
+
+    .author-badge {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: rgba(255, 215, 0, 0.2);
+      color: #ffd700;
+      border: 1px solid rgba(255, 215, 0, 0.3);
+    }
+
+    .chat-username {
+      font-size: 13px;
+      font-weight: 700;
+      color: #f8fafc;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .chat-text {
+      font-size: 15px;
+      font-weight: 500;
+      line-height: 1.35;
+      color: #ffffff;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.85);
+      word-wrap: break-word;
+      font-variant-emoji: emoji;
+    }
+
+    .yt-custom-emote {
+      height: 1.25em;
+      width: 1.25em;
+      vertical-align: -0.22em;
+      display: inline-block;
+      object-fit: contain;
+    }
+
+    /* GIFT ALERT CONTAINER */
+    /* GIFT ALERT CONTAINER - NATIVE TIKTOK FLOATING STICKER */
+    #gift-container {
+      display: flex;
+      position: absolute;
+      top: 35%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      pointer-events: none;
+    }
+
+    .badge-gift {
+      background: linear-gradient(135deg, #f43f5e, #fb7185) !important;
+      color: #fff !important;
+      font-weight: 800 !important;
+      box-shadow: 0 0 8px rgba(244, 63, 94, 0.6) !important;
+    }
+
+    .gift-card {
+      position: relative;
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      pointer-events: none;
+    }
+
+    /* GIFT ANIMATION PRESETS */
+    .gift-anim-bounce {
+      animation: giftBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    .gift-anim-pop {
+      animation: giftPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    .gift-anim-slide {
+      animation: giftSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .gift-anim-fade {
+      animation: giftFade 0.4s ease-out forwards;
+    }
+
+    .gift-exit {
+      animation: giftExit 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+    }
+
+    @keyframes giftBounce {
+      0% { opacity: 0; transform: scale(0.2) translateY(-70px); }
+      50% { transform: scale(1.22) translateY(10px); }
+      70% { transform: scale(0.95) translateY(-3px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    @keyframes giftPop {
+      0% { opacity: 0; transform: scale(0.25); }
+      75% { transform: scale(1.25); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    @keyframes giftSlide {
+      0% { opacity: 0; transform: translateY(-90px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes giftFade {
+      0% { opacity: 0; transform: scale(0.8); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    @keyframes giftExit {
+      0% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(0.4) translateY(-35px); }
+    }
+
+    .tiktok-sticker-wrapper {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.55));
+    }
+
+    .tiktok-sticker-img {
+      width: 140px;
+      height: 140px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 24px rgba(254, 44, 85, 0.55)) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4));
+      animation: tiktokStickerWobble 1.2s ease-in-out infinite alternate;
+      will-change: transform;
+    }
+
+    @keyframes tiktokStickerWobble {
+      0% { transform: scale(1) rotate(-4deg); }
+      100% { transform: scale(1.1) rotate(4deg); }
+    }
+
+    .tiktok-combo-badge {
+      font-family: 'Plus Jakarta Sans', Impact, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-style: italic;
+      font-weight: 900;
+      font-size: 52px;
+      line-height: 1;
+      letter-spacing: -1.5px;
+      margin-left: 12px;
+      background: linear-gradient(180deg, #fffbc2 0%, #ffbe00 45%, #ff3b00 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      -webkit-text-stroke: 2.5px #000000;
+      filter: drop-shadow(3px 3px 0 #000000) drop-shadow(0 0 16px rgba(255, 140, 0, 0.9));
+      animation: comboPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      display: inline-block;
+      white-space: nowrap;
+    }
+
+    @keyframes comboPop {
+      0% { transform: scale(0.3) rotate(-15deg); opacity: 0; }
+      75% { transform: scale(1.28) rotate(6deg); opacity: 1; }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div id="overlay-root">
+    <!-- GIFT ALERT COMPONENT -->
+    <div id="gift-container"></div>
+
+    <!-- CHAT CONTAINER -->
+    <div id="chat-container"></div>
+  </div>
+
+  <script>
+    (function() {
+      var currentSettings = {
+        chatFontFamily: "'Plus Jakarta Sans'",
+        chatFontSize: 16,
+        chatTextColor: '#ffffff',
+        chatBgColor: '#0f172a',
+        chatBgOpacity: 75,
+        chatMaxMessages: 40,
+        chatDurationSeconds: 20,
+        chatShowAvatar: true,
+        chatShowBadge: true,
+        chatAnimation: 'slide',
+        giftAnimationEnabled: true,
+        giftAnimationPreset: 'bounce',
+        giftDurationSeconds: 4,
+        giftShowUsername: true,
+        giftShowGiftName: true,
+        giftShowGiftCount: true,
+        giftSoundEffect: true,
+        giftDelaySeconds: 0.5
+      };
+      var chatContainer = document.getElementById('chat-container');
+      var giftContainer = document.getElementById('gift-container');
+      var audioCtx = null;
+
+      function playChimeSound() {
+        if (!currentSettings || currentSettings.giftSoundEffect === false) return;
+        try {
+          if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          }
+          if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume().catch(function() {});
+          }
+
+          var now = audioCtx.currentTime;
+          var osc1 = audioCtx.createOscillator();
+          var osc2 = audioCtx.createOscillator();
+          var gain = audioCtx.createGain();
+
+          osc1.type = 'triangle';
+          osc2.type = 'sine';
+
+          osc1.frequency.setValueAtTime(587.33, now); // D5
+          osc1.frequency.exponentialRampToValueAtTime(880, now + 0.12); // A5
+          osc1.frequency.exponentialRampToValueAtTime(1174.66, now + 0.28); // D6
+
+          osc2.frequency.setValueAtTime(440, now);
+          osc2.frequency.exponentialRampToValueAtTime(880, now + 0.28);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.3, now + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
+
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc1.start(now);
+          osc2.start(now);
+          osc1.stop(now + 0.85);
+          osc2.stop(now + 0.85);
+        } catch (e) {
+          console.warn('Audio play error:', e);
+        }
+      }
+
+      function applyStyles(settings) {
+        if (!settings) return;
+        currentSettings = Object.assign({}, currentSettings, settings);
+
+        var userFont = currentSettings.chatFontFamily || "'Plus Jakarta Sans'";
+        document.body.style.fontFamily = userFont + ", 'Segoe UI Emoji', 'Segoe UI Symbol', 'Apple Color Emoji', 'Noto Color Emoji', -apple-system, BlinkMacSystemFont, sans-serif";
+
+        var bubbles = document.querySelectorAll('.chat-bubble');
+        var hexBg = currentSettings.chatBgColor || '#0f172a';
+        var opacity = (currentSettings.chatBgOpacity !== undefined ? currentSettings.chatBgOpacity : 75) / 100;
+        var r = parseInt(hexBg.slice(1, 3), 16) || 15;
+        var g = parseInt(hexBg.slice(3, 5), 16) || 23;
+        var b = parseInt(hexBg.slice(5, 7), 16) || 42;
+        var rgbaBg = 'rgba(' + r + ',' + g + ',' + b + ',' + opacity + ')';
+
+        bubbles.forEach(function(el) {
+          el.style.backgroundColor = rgbaBg;
+          var textEl = el.querySelector('.chat-text');
+          if (textEl) {
+            textEl.style.color = currentSettings.chatTextColor || '#ffffff';
+            textEl.style.fontSize = (currentSettings.chatFontSize || 16) + 'px';
+          }
+        });
+      }
+
+      function addChatMessage(msg) {
+        if (!chatContainer || !currentSettings) return;
+
+        var bubble = document.createElement('div');
+        bubble.className = 'chat-bubble anim-' + (currentSettings.chatAnimation || 'slide');
+
+        var hexBg = currentSettings.chatBgColor || '#0f172a';
+        var opacity = (currentSettings.chatBgOpacity !== undefined ? currentSettings.chatBgOpacity : 75) / 100;
+        var r = parseInt(hexBg.slice(1, 3), 16) || 15;
+        var g = parseInt(hexBg.slice(3, 5), 16) || 23;
+        var b = parseInt(hexBg.slice(5, 7), 16) || 42;
+        bubble.style.backgroundColor = 'rgba(' + r + ',' + g + ',' + b + ',' + opacity + ')';
+
+        var avatarHtml = '';
+        if (currentSettings.chatShowAvatar) {
+          var avatarUrl = msg.avatar || (msg.platform === 'youtube'
+            ? 'https://api.dicebear.com/7.x/identicon/svg?seed=' + encodeURIComponent(msg.username)
+            : 'https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(msg.username));
+          avatarHtml = '<img class="chat-avatar" src="' + avatarUrl + '" onerror="this.remove()" />';
+        }
+
+        var badgeHtml = '';
+        if (currentSettings.chatShowBadge) {
+          if (msg.platform === 'youtube') {
+            badgeHtml += '<span class="badge-yt">YT</span>';
+          } else {
+            badgeHtml += '<span class="badge-tt">TT</span>';
+          }
+        }
+
+        if (Array.isArray(msg.badges)) {
+          msg.badges.forEach(function(b) {
+            badgeHtml += '<span class="author-badge' + (b === 'GIFT' ? ' badge-gift' : '') + '">' + escapeHtml(b) + '</span>';
+          });
+        }
+
+        var name = escapeHtml(msg.displayName || msg.username);
+        var text = renderMessageContent(msg.message);
+        var fontSize = (currentSettings.chatFontSize || 16) + 'px';
+        var textColor = currentSettings.chatTextColor || '#ffffff';
+
+        bubble.innerHTML = avatarHtml +
+          '<div class="chat-content">' +
+            '<div class="chat-header">' +
+              badgeHtml +
+              '<span class="chat-username">' + name + '</span>' +
+            '</div>' +
+            '<div class="chat-text" style="color:' + textColor + '; font-size:' + fontSize + ';">' + text + '</div>' +
+          '</div>';
+
+        chatContainer.appendChild(bubble);
+
+        // Limit visible messages
+        var maxMsgs = currentSettings.chatMaxMessages || 40;
+        while (chatContainer.children.length > maxMsgs) {
+          chatContainer.removeChild(chatContainer.firstChild);
+        }
+
+        // Auto remove message after duration
+        var durationSec = currentSettings.chatDurationSeconds;
+        if (durationSec && durationSec > 0) {
+          setTimeout(function() {
+            bubble.classList.add('fade-out');
+            setTimeout(function() {
+              if (bubble.parentNode) {
+                bubble.parentNode.removeChild(bubble);
+              }
+            }, 650);
+          }, durationSec * 1000);
+        }
+      }
+
+      var giftAlertQueue = [];
+      var isGiftAlertActive = false;
+
+      function enqueueGiftAlert(gift) {
+        if (!gift) return;
+        if (giftAlertQueue.length >= 35) {
+          giftAlertQueue.shift();
+        }
+        giftAlertQueue.push(gift);
+        processGiftAlertQueue();
+      }
+
+      function processGiftAlertQueue() {
+        if (isGiftAlertActive || giftAlertQueue.length === 0) return;
+        isGiftAlertActive = true;
+
+        var gift = giftAlertQueue.shift();
+        showGiftAlert(gift, function() {
+          var delaySec = (currentSettings && currentSettings.giftDelaySeconds !== undefined)
+            ? Number(currentSettings.giftDelaySeconds)
+            : 0.5;
+          var interDelayMs = Math.max(150, delaySec * 1000);
+
+          setTimeout(function() {
+            isGiftAlertActive = false;
+            processGiftAlertQueue();
+          }, interDelayMs);
+        });
+      }
+
+      function showGiftAlert(gift, onComplete) {
+        if (!giftContainer || !gift) {
+          if (typeof onComplete === 'function') onComplete();
+          return;
+        }
+        // On dedicated gifts overlay, always display! On other overlays, check settings
+        if ('all' !== 'gifts' && currentSettings && currentSettings.giftAnimationEnabled === false) {
+          if (typeof onComplete === 'function') onComplete();
+          return;
+        }
+
+        playChimeSound();
+
+        var card = document.createElement('div');
+        var preset = (currentSettings && currentSettings.giftAnimationPreset) || 'bounce';
+        card.className = 'gift-card gift-anim-' + preset;
+
+        var defaultSticker = 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/3f02fa9594bd1495ff4e8aa5ae265eef~tplv-obj.png';
+        var stickerUrl = gift.giftPictureUrl || getTikTokStickerByName(gift.giftName || '', gift.giftId) || defaultSticker;
+        var count = gift.giftCount || 1;
+
+        var countHtml = '<span class="tiktok-combo-badge">× ' + count + '</span>';
+
+        // PURE NATIVE TIKTOK FLOATING STICKER (NO USERNAME, NO GIFT NAME, NO BOX)
+        card.innerHTML =
+          '<div class="tiktok-sticker-wrapper">' +
+            '<img class="tiktok-sticker-img" src="' + stickerUrl + '" onerror="handleGiftImgError(this)" />' +
+            countHtml +
+          '</div>';
+
+        giftContainer.innerHTML = '';
+        giftContainer.appendChild(card);
+
+        var durationMs = ((currentSettings && currentSettings.giftDurationSeconds) || 4) * 1000;
+        // Dynamically accelerate slightly if spam backlog exceeds 4
+        if (giftAlertQueue.length > 4) {
+          durationMs = Math.max(1600, durationMs * 0.65);
+        }
+
+        setTimeout(function() {
+          card.classList.add('gift-exit');
+          setTimeout(function() {
+            if (card.parentNode) {
+              card.parentNode.removeChild(card);
+            }
+            if (typeof onComplete === 'function') {
+              onComplete();
+            }
+          }, 450);
+        }, durationMs);
+      }
+
+      function handleGiftImgError(img) {
+        if (!img) return;
+        img.onerror = null;
+        img.src = 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/3f02fa9594bd1495ff4e8aa5ae265eef~tplv-obj.png';
+      }
+
+      function getTikTokStickerByName(name, id) {
+        var n = (name || '').toLowerCase();
+        var idStr = String(id || '').trim();
+        if (idStr === '6064' || n.includes('gg')) return 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/3f02fa9594bd1495ff4e8aa5ae265eef~tplv-obj.png';
+        if (idStr === '5655' || idStr === '5489' || n.includes('rose') || n.includes('mawar')) return 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/9b1f08d38a7516eaa242c760dc0f5547.png~tplv-obj.png';
+        if (idStr === '5269' || n.includes('tiktok')) return 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/d356c9d7499625345a90ad1df1b31278.png~tplv-obj.png';
+        if (idStr === '5827' || n.includes('heart me')) return 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/4e2fc1042c03164917a26cb595bfddf9.png~tplv-obj.png';
+        if (idStr === '5585' || n.includes('finger heart')) return 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/da931ff73e6587d159a6078e47f5cfb3.png~tplv-obj.png';
+        if (idStr === '5658' || n.includes('doughnut') || n.includes('donat')) return 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/db1ebcfb99db10e39540c4a45a32b6e1.png~tplv-obj.png';
+        if (idStr === '5656' || n.includes('ice cream') || n.includes('es krim')) return 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/0a316d3fdf6c63b15fa4d38c6b72a0c6.png~tplv-obj.png';
+        if (idStr === '6143' || n.includes('lion') || n.includes('singa')) return 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/44d1565e3176d05f320f78a7f23be3f7.png~tplv-obj.png';
+        if (idStr === '2150' || n.includes('whale') || n.includes('paus')) return 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/a6755ca7b6bb27efc6b75c5e87a27eb2.png~tplv-obj.png';
+        if (idStr === '6144' || n.includes('universe')) return 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/6ecda201ee19d297ff0111f1ae55b76d.png~tplv-obj.png';
+        return 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/3f02fa9594bd1495ff4e8aa5ae265eef~tplv-obj.png';
+      }
+
+      function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      function renderMessageContent(rawText) {
+        if (!rawText) return '';
+        var escaped = escapeHtml(rawText);
+        var parts = escaped.split('[yt-emote:');
+        if (parts.length === 1) return escaped;
+        var res = parts[0];
+        for (var i = 1; i < parts.length; i++) {
+          var closeIdx = parts[i].indexOf(']');
+          if (closeIdx !== -1) {
+            var url = parts[i].substring(0, closeIdx);
+            var rest = parts[i].substring(closeIdx + 1);
+            res += '<img class="yt-custom-emote" src="' + url + '" onerror="this.remove()" />' + rest;
+          } else {
+            res += '[yt-emote:' + parts[i];
+          }
+        }
+        return res;
+      }
+
+      // WebSocket Connection with Auto Reconnect
+      var ws = null;
+      var reconnectDelay = 1000;
+
+      function connectWS() {
+        var params = new URLSearchParams(window.location.search);
+        var targetServer = params.get('server');
+        var wsUrl;
+        if (targetServer) {
+          var trimmed = targetServer.trim().replace(//+$/, '');
+          if (trimmed.startsWith('ws://') || trimmed.startsWith('wss://')) {
+            wsUrl = trimmed.endsWith('/ws') ? trimmed : (trimmed + '/ws');
+          } else {
+            var proto = trimmed.startsWith('https://') ? 'wss:' : 'ws:';
+            var host = trimmed.replace(/^https?:///, '');
+            wsUrl = proto + '//' + host + '/ws';
+          }
+        } else {
+          var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          wsUrl = protocol + '//' + window.location.host + '/ws';
+        }
+
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = function() {
+          reconnectDelay = 1000;
+          console.log('[Overlay] Terhubung ke WebSocket server');
+
+          var readyBadge = document.createElement('div');
+          readyBadge.id = 'streamchat-ready-badge';
+          readyBadge.innerText = '⚡ Overlay Connected & Ready';
+          readyBadge.style.cssText = 'position:fixed;bottom:12px;right:12px;background:rgba(16,185,129,0.9);color:#ffffff;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:700;z-index:99999;box-shadow:0 2px 10px rgba(0,0,0,0.5);transition:opacity 0.8s ease;pointer-events:none;font-family:sans-serif;';
+          document.body.appendChild(readyBadge);
+          setTimeout(function() {
+            readyBadge.style.opacity = '0';
+            setTimeout(function() {
+              if (readyBadge.parentNode) {
+                readyBadge.parentNode.removeChild(readyBadge);
+              }
+            }, 800);
+          }, 3000);
+        };
+
+        ws.onmessage = function(event) {
+          try {
+            var msg = JSON.parse(event.data);
+            if (msg.type === 'init') {
+              applyStyles(msg.settings);
+              if (Array.isArray(msg.recentChats)) {
+                msg.recentChats.forEach(addChatMessage);
+              }
+              if (msg.recentGift) {
+                enqueueGiftAlert(msg.recentGift);
+              }
+            } else if (msg.type === 'settings') {
+              applyStyles(msg.data);
+            } else if (msg.type === 'chat') {
+              addChatMessage(msg.data);
+            } else if (msg.type === 'gift-alert') {
+              enqueueGiftAlert(msg.data);
+            }
+          } catch (e) {
+            console.error('Error handling WS event:', e);
+          }
+        };
+
+        ws.onclose = function() {
+          console.warn('[Overlay] WebSocket terputus. Mencoba reconnect...');
+          setTimeout(connectWS, reconnectDelay);
+          reconnectDelay = Math.min(reconnectDelay * 1.5, 10000);
+        };
+
+        ws.onerror = function(err) {
+          console.error('[Overlay] WebSocket error:', err);
+        };
+      }
+
+      connectWS();
+    })();
+  </script>
+</body>
+</html>

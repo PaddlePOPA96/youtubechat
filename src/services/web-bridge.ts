@@ -39,19 +39,50 @@ class WebBridge {
   private youtubeTarget = '';
   private tiktokStatus: ConnectionStatus = 'disconnected';
   private tiktokUsername = '';
-  private cachedSettings: AppSettings = { ...DEFAULT_SETTINGS };
+  private cachedSettings: AppSettings = {
+    ...DEFAULT_SETTINGS,
+    customBackendUrl: typeof window !== 'undefined' ? (localStorage.getItem('streamchat_backend_url') || '') : '',
+  };
 
   private isConnected = false;
   private reconnectTimer: any = null;
 
   constructor() {
     this.connectWs();
+
+    if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app') && !this.getBaseUrl()) {
+      setTimeout(() => {
+        this.emitLog('info', '🌐 StreamChat berjalan di Vercel. Untuk menghubungkan live stream YouTube/TikTok, masukkan Backend Server URL di menu Pengaturan (ikon ⚙️).');
+      }, 1000);
+    }
+  }
+
+  private getBaseUrl(): string {
+    const custom =
+      this.cachedSettings.customBackendUrl ||
+      (typeof window !== 'undefined' ? localStorage.getItem('streamchat_backend_url') : '') ||
+      (import.meta as any).env?.VITE_BACKEND_URL;
+
+    if (custom && typeof custom === 'string') {
+      return custom.trim().replace(/\/+$/, '');
+    }
+    return '';
   }
 
   private getWsUrl(): string {
+    const custom = this.getBaseUrl();
+    if (custom) {
+      if (custom.startsWith('ws://') || custom.startsWith('wss://')) {
+        return custom.endsWith('/ws') ? custom : `${custom}/ws`;
+      }
+      const proto = custom.startsWith('https://') ? 'wss:' : 'ws:';
+      const cleanHost = custom.replace(/^https?:\/\//, '');
+      return `${proto}//${cleanHost}/ws`;
+    }
+
     const isHttps = window.location.protocol === 'https:';
     const proto = isHttps ? 'wss:' : 'ws:';
-    // When served via Vite (port 5173), Vite proxies /ws to 3210
+    // When served via Vite or same server, use /ws
     return `${proto}//${window.location.host}/ws`;
   }
 
@@ -59,6 +90,15 @@ class WebBridge {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
+    }
+
+    if (this.ws) {
+      try {
+        this.ws.close();
+      } catch {
+        // ignore
+      }
+      this.ws = null;
     }
 
     try {
@@ -81,15 +121,15 @@ class WebBridge {
 
       this.ws.onclose = () => {
         this.isConnected = false;
-        // Auto-reconnect after 2 seconds
-        this.reconnectTimer = setTimeout(() => this.connectWs(), 2000);
+        // Auto-reconnect after 3 seconds
+        this.reconnectTimer = setTimeout(() => this.connectWs(), 3000);
       };
 
       this.ws.onerror = () => {
         this.isConnected = false;
       };
     } catch {
-      this.reconnectTimer = setTimeout(() => this.connectWs(), 3000);
+      this.reconnectTimer = setTimeout(() => this.connectWs(), 4000);
     }
   }
 
@@ -97,7 +137,13 @@ class WebBridge {
     if (!payload || !payload.type) return;
 
     if (payload.type === 'init' || payload.type === 'init-full') {
-      if (payload.settings) this.cachedSettings = { ...payload.settings };
+      if (payload.settings) {
+        this.cachedSettings = {
+          ...this.cachedSettings,
+          ...payload.settings,
+          customBackendUrl: localStorage.getItem('streamchat_backend_url') || this.cachedSettings.customBackendUrl || '',
+        };
+      }
       if (payload.youtube) {
         this.youtubeStatus = payload.youtube.status || 'disconnected';
         this.youtubeTarget = payload.youtube.target || '';
@@ -134,7 +180,11 @@ class WebBridge {
     } else if (payload.type === 'log') {
       this.emitLog(payload.level || 'info', payload.message || '');
     } else if (payload.type === 'settings' && payload.data) {
-      this.cachedSettings = { ...payload.data };
+      this.cachedSettings = {
+        ...this.cachedSettings,
+        ...payload.data,
+        customBackendUrl: localStorage.getItem('streamchat_backend_url') || this.cachedSettings.customBackendUrl || '',
+      };
     }
   }
 
@@ -164,7 +214,8 @@ class WebBridge {
       connectYouTube: async (target: string) => {
         this.youtubeTarget = target;
         try {
-          const res = await fetch('/api/youtube/connect', {
+          const base = this.getBaseUrl();
+          const res = await fetch(`${base}/api/youtube/connect`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ target }),
@@ -178,7 +229,8 @@ class WebBridge {
 
       disconnectYouTube: async () => {
         try {
-          await fetch('/api/youtube/disconnect', { method: 'POST' });
+          const base = this.getBaseUrl();
+          await fetch(`${base}/api/youtube/disconnect`, { method: 'POST' });
         } catch {
           // ignore
         }
@@ -186,7 +238,8 @@ class WebBridge {
 
       getYouTubeStatus: async () => {
         try {
-          const res = await fetch('/api/youtube/status');
+          const base = this.getBaseUrl();
+          const res = await fetch(`${base}/api/youtube/status`);
           const data = await res.json();
           this.youtubeStatus = data.status;
           this.youtubeTarget = data.target;
@@ -199,7 +252,8 @@ class WebBridge {
       connectTikTok: async (username: string) => {
         this.tiktokUsername = username;
         try {
-          const res = await fetch('/api/tiktok/connect', {
+          const base = this.getBaseUrl();
+          const res = await fetch(`${base}/api/tiktok/connect`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username }),
@@ -213,7 +267,8 @@ class WebBridge {
 
       disconnectTikTok: async () => {
         try {
-          await fetch('/api/tiktok/disconnect', { method: 'POST' });
+          const base = this.getBaseUrl();
+          await fetch(`${base}/api/tiktok/disconnect`, { method: 'POST' });
         } catch {
           // ignore
         }
@@ -221,7 +276,8 @@ class WebBridge {
 
       getTikTokStatus: async () => {
         try {
-          const res = await fetch('/api/tiktok/status');
+          const base = this.getBaseUrl();
+          const res = await fetch(`${base}/api/tiktok/status`);
           const data = await res.json();
           this.tiktokStatus = data.status;
           this.tiktokUsername = data.username;
@@ -233,34 +289,59 @@ class WebBridge {
 
       getSettings: async () => {
         try {
-          const res = await fetch('/api/settings');
+          const base = this.getBaseUrl();
+          const res = await fetch(`${base}/api/settings`);
           const data = await res.json();
-          this.cachedSettings = data;
-          return data;
+          this.cachedSettings = {
+            ...this.cachedSettings,
+            ...data,
+            customBackendUrl: localStorage.getItem('streamchat_backend_url') || '',
+          };
+          return this.cachedSettings;
         } catch {
           return this.cachedSettings;
         }
       },
 
       saveSettings: async (settings: Partial<AppSettings>) => {
+        const oldBackend = this.getBaseUrl();
+        if (settings.customBackendUrl !== undefined) {
+          localStorage.setItem('streamchat_backend_url', settings.customBackendUrl.trim());
+          this.cachedSettings.customBackendUrl = settings.customBackendUrl.trim();
+        }
+
         try {
-          const res = await fetch('/api/settings', {
+          const base = this.getBaseUrl();
+          const res = await fetch(`${base}/api/settings`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(settings),
           });
           const data = await res.json();
-          this.cachedSettings = data;
-          return data;
+          this.cachedSettings = {
+            ...this.cachedSettings,
+            ...data,
+            customBackendUrl: localStorage.getItem('streamchat_backend_url') || '',
+          };
+
+          if (this.getBaseUrl() !== oldBackend) {
+            this.connectWs();
+          }
+
+          return this.cachedSettings;
         } catch {
           this.cachedSettings = { ...this.cachedSettings, ...settings };
+          if (this.getBaseUrl() !== oldBackend) {
+            this.connectWs();
+          }
           return this.cachedSettings;
         }
       },
 
       sendTestChat: async (custom?: Partial<ChatMessage>) => {
         try {
-          await fetch('/api/test/chat', {
+          const base = this.getBaseUrl();
+          await fetch(`${base}/api/test/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ custom }),
@@ -272,7 +353,8 @@ class WebBridge {
 
       sendTestGift: async (custom?: Partial<GiftEvent>) => {
         try {
-          await fetch('/api/test/gift', {
+          const base = this.getBaseUrl();
+          await fetch(`${base}/api/test/gift`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ custom }),
@@ -284,7 +366,8 @@ class WebBridge {
 
       replayGift: async (gift: GiftEvent) => {
         try {
-          await fetch('/api/gift/replay', {
+          const base = this.getBaseUrl();
+          await fetch(`${base}/api/gift/replay`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ gift }),
@@ -295,18 +378,16 @@ class WebBridge {
       },
 
       getOverlayUrls: async () => {
-        try {
-          const res = await fetch('/api/overlay/urls');
-          return await res.json();
-        } catch {
-          const p = 3210;
-          return {
-            port: p,
-            chat: `http://127.0.0.1:${p}/overlay/chat`,
-            gifts: `http://127.0.0.1:${p}/overlay/gifts`,
-            all: `http://127.0.0.1:${p}/overlay/all`,
-          };
-        }
+        const base = this.getBaseUrl();
+        const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
+        const serverQuery = base ? `?server=${encodeURIComponent(base)}` : '';
+
+        return {
+          port: this.cachedSettings.overlayPort || 3210,
+          chat: `${origin}/overlay/chat.html${serverQuery}`,
+          gifts: `${origin}/overlay/gifts.html${serverQuery}`,
+          all: `${origin}/overlay/all.html${serverQuery}`,
+        };
       },
 
       onChatMessage: (callback) => {

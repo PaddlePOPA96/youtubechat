@@ -1,0 +1,24 @@
+{
+  "buildCommand": "npm run build:renderer",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/overlay/chat",
+      "destination": "/overlay/chat.html"
+    },
+    {
+      "source": "/overlay/gifts",
+      "destination": "/overlay/gifts.html"
+    },
+    {
+      "source": "/overlay/all",
+      "destination": "/overlay/all.html"
+    },
+    {
+      "source": "/((?!assets|overlay|public|icon).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

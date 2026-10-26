@@ -71,12 +71,14 @@ export interface AppSettings {
   giftQueueLimit: number;
   giftDelaySeconds: number;
   tiktokApiKey?: string;
+  customBackendUrl?: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   youtubeTarget: '',
   tiktokUsername: '',
   tiktokApiKey: '',
+  customBackendUrl: '',
   autoConnect: false,
   overlayPort: 3210,
 

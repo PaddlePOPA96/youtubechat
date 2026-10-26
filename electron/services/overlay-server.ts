@@ -1046,8 +1046,22 @@ export class OverlayServer {
       var reconnectDelay = 1000;
 
       function connectWS() {
-        var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        var wsUrl = protocol + '//' + window.location.host + '/ws';
+        var params = new URLSearchParams(window.location.search);
+        var targetServer = params.get('server');
+        var wsUrl;
+        if (targetServer) {
+          var trimmed = targetServer.trim().replace(/\/+$/, '');
+          if (trimmed.startsWith('ws://') || trimmed.startsWith('wss://')) {
+            wsUrl = trimmed.endsWith('/ws') ? trimmed : (trimmed + '/ws');
+          } else {
+            var proto = trimmed.startsWith('https://') ? 'wss:' : 'ws:';
+            var host = trimmed.replace(/^https?:\/\//, '');
+            wsUrl = proto + '//' + host + '/ws';
+          }
+        } else {
+          var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          wsUrl = protocol + '//' + window.location.host + '/ws';
+        }
 
         ws = new WebSocket(wsUrl);
 
