@@ -96,9 +96,14 @@ export class TikTokAdapter {
       return;
     }
 
-    if (apiKey && apiKey.trim()) {
-      process.env.SIGN_API_KEY = apiKey.trim();
-      eventBus.emit('log', 'info', '[TikTok] Menggunakan EulerStream API Key kustom');
+    const effectiveApiKey =
+      (apiKey && apiKey.trim()) ||
+      process.env.SIGN_API_KEY ||
+      'euler_ZDNhYjA2YTNjYjM5ZDRlMDM4MGFjMTEyYTFlYmQ5NDJlYzE5NzQ1ZDgyNGY2YWVlOGU1OTkz';
+
+    if (effectiveApiKey) {
+      process.env.SIGN_API_KEY = effectiveApiKey;
+      eventBus.emit('log', 'info', `[TikTok] Menggunakan EulerStream API Key: ${effectiveApiKey.slice(0, 14)}...`);
     }
 
     this.currentUsername = cleanUsername;
@@ -123,8 +128,15 @@ export class TikTokAdapter {
         throw new Error('TikTokLiveConnection class tidak ditemukan di tiktok-live-connector');
       }
 
-      // Minimal sign requests to prevent hitting rate limit
+      // Configure SignConfig directly on the module
+      if (mod.SignConfig && effectiveApiKey) {
+        mod.SignConfig.apiKey = effectiveApiKey;
+        mod.SignConfig.cachedInstance = undefined;
+      }
+
+      // Pass signApiKey into connection options to bypass rate limit
       this.tiktokLive = new ConnectionClass(cleanUsername, {
+        signApiKey: effectiveApiKey || undefined,
         fetchRoomInfoOnConnect: false,
         enableExtendedGiftInfo: false,
         processInitialData: true
