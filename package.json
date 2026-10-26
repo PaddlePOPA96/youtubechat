@@ -1,0 +1,66 @@
+{
+  "name": "streamchat-desktop",
+  "version": "1.0.0",
+  "description": "Desktop app to unify YouTube and TikTok live chat and stream overlays for OBS",
+  "author": "StreamChat",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && npm run electron:dev\"",
+    "dev:renderer": "vite",
+    "electron:dev": "npm run build:electron && cross-env NODE_ENV=development VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+    "build:electron": "tsup electron/main.ts electron/preload.ts --format cjs --out-dir dist-electron --external electron,youtubei.js,tiktok-live-connector,ws",
+    "build:renderer": "vite build",
+    "build": "npm run build:renderer && npm run build:electron",
+    "start": "npm run build && cross-env NODE_ENV=production electron .",
+    "dist": "npm run build && electron-builder --win",
+    "dist:dir": "npm run build && electron-builder --win --dir",
+    "test": "tsx tests/verify-core.ts",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.16.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tiktok-live-connector": "^2.5.0",
+    "ws": "^8.18.0",
+    "youtubei.js": "^13.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/ws": "^8.5.10",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^31.1.0",
+    "electron-builder": "^24.13.3",
+    "tsup": "^8.1.0",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.2",
+    "vite": "^5.3.1",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.streamchat.desktop",
+    "productName": "StreamChat Desktop",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "public/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "icon": "public/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    }
+  }
+}

@@ -1,0 +1,745 @@
+# PRD — StreamChat Desktop
+
+## 1. Informasi Proyek
+
+- **Nama aplikasi:** StreamChat Desktop
+- **Platform:** Windows Desktop
+- **Framework:** Electron
+- **Frontend:** React + TypeScript
+- **Build Tool:** Vite
+- **YouTube Library:** `youtubei.js`
+- **TikTok Library:** `tiktok-live-connector`
+- **OBS Integration:** Browser Source melalui server lokal HTTP dan WebSocket
+- **Styling:** CSS
+- **Animation:** CSS Keyframes
+- **Packaging:** Electron Builder
+
+## 2. Tujuan Aplikasi
+
+Membuat aplikasi desktop berbasis Electron yang dapat membaca live chat YouTube dan TikTok secara bersamaan, menggabungkan chat dalam satu dashboard, serta menampilkan chat dan animasi gift TikTok pada OBS Studio.
+
+Aplikasi harus ringan, responsif, mudah digunakan, dan dapat berjalan selama streaming berlangsung.
+
+### Tujuan utama
+
+1. Membaca live chat YouTube secara real-time.
+2. Membaca live chat TikTok secara real-time.
+3. Menggabungkan chat kedua platform dalam satu dashboard.
+4. Membedakan chat berdasarkan platform.
+5. Menampilkan chat melalui OBS Browser Source.
+6. Membaca event gift TikTok.
+7. Menampilkan animasi gift TikTok secara otomatis di OBS.
+8. Menyediakan pengaturan tampilan overlay melalui dashboard.
+9. Menangani koneksi terputus tanpa menghentikan platform lainnya.
+
+---
+
+## 3. Dashboard Desktop
+
+Buat dashboard utama dengan antarmuka modern, sederhana, dan mudah dipahami.
+
+### Komponen dashboard
+
+- Connection Status
+- YouTube Connection
+- TikTok Connection
+- Unified Chat
+- Platform Filter
+- Gift Event Panel
+- OBS Overlay Settings
+- Application Settings
+
+### Status koneksi
+
+Setiap platform harus memiliki status koneksi sendiri:
+
+- Disconnected
+- Connecting
+- Connected
+- Reconnecting
+- Error
+
+### Requirement
+
+- YouTube dan TikTok dapat dihubungkan secara independen.
+- Jika salah satu platform terputus, platform lainnya tetap berjalan.
+- Pengguna dapat menghubungkan dan memutuskan koneksi secara manual.
+- Tampilkan informasi error jika koneksi gagal.
+- Dashboard tetap responsif saat menerima banyak pesan.
+- Pengguna dapat melihat chat tanpa membuka OBS.
+
+---
+
+## 4. Integrasi YouTube Live Chat
+
+Gunakan library `youtubei.js` untuk membaca live chat YouTube.
+
+### Fitur
+
+- Input URL atau ID live stream YouTube.
+- Memvalidasi ketersediaan live chat.
+- Membaca pesan secara real-time.
+- Mengambil username pengirim.
+- Mengambil display name jika tersedia.
+- Mengambil avatar jika tersedia.
+- Mengambil isi pesan.
+- Mengambil informasi badge jika tersedia.
+- Mengambil timestamp jika tersedia.
+- Mengirim data ke sistem Unified Chat.
+- Mengirim data ke overlay OBS.
+- Menangani error dan reconnect.
+- Menampilkan status koneksi YouTube.
+
+### Format data internal
+
+```json
+{
+  "id": "youtube-message-id",
+  "platform": "youtube",
+  "username": "PlayerOne",
+  "displayName": "Player One",
+  "avatar": "https://example.com/avatar.jpg",
+  "message": "Halo semuanya!",
+  "badges": [],
+  "timestamp": 1793000000000,
+  "type": "chat"
+}
+```
+
+Format di atas adalah skema internal aplikasi, bukan payload asli `youtubei.js`.
+
+---
+
+## 5. Integrasi TikTok Live Chat
+
+Gunakan library `tiktok-live-connector` untuk membaca live chat dan event TikTok LIVE.
+
+### Fitur
+
+- Input username kreator TikTok.
+- Menghubungkan aplikasi ke live stream TikTok.
+- Membaca komentar secara real-time.
+- Mengambil username pengirim.
+- Mengambil display name jika tersedia.
+- Mengambil avatar jika tersedia.
+- Mengambil isi komentar.
+- Membaca event gift.
+- Mengambil nama gift dan gift ID jika tersedia.
+- Mengambil jumlah gift.
+- Menangani gift streak.
+- Menangani reconnect dan error.
+- Mengirim chat ke sistem Unified Chat.
+- Mengirim gift ke Gift Event System.
+
+### Format data chat internal
+
+```json
+{
+  "id": "tiktok-message-id",
+  "platform": "tiktok",
+  "username": "PlayerTwo",
+  "displayName": "Player Two",
+  "avatar": "https://example.com/avatar.jpg",
+  "message": "Gas terus!",
+  "timestamp": 1793000000000,
+  "type": "chat"
+}
+```
+
+Format tersebut merupakan struktur internal yang disarankan.
+
+---
+
+## 6. Unified Chat System
+
+Gabungkan chat YouTube dan TikTok menggunakan satu format data internal.
+
+### Requirement
+
+- Semua chat ditampilkan dalam satu daftar.
+- Setiap chat memiliki identitas platform.
+- Chat YouTube menggunakan badge `YT`.
+- Chat TikTok menggunakan badge `TT`.
+- Setiap platform memiliki warna identitas berbeda.
+- Chat diurutkan berdasarkan waktu penerimaan.
+- Pesan baru muncul secara real-time.
+- Chat tidak membutuhkan refresh manual.
+- Avatar dapat ditampilkan atau disembunyikan.
+- Pesan panjang harus membungkus baris dengan benar.
+- Sistem memiliki batas jumlah pesan dalam memori.
+- Pengguna dapat memfilter chat berdasarkan platform.
+
+### Contoh tampilan
+
+```text
+[YOUTUBE] PlayerOne
+Halo semuanya!
+
+[TIKTOK] PlayerTwo
+Gas terus bang!
+
+[YOUTUBE] Viewer123
+Semangat stream-nya!
+```
+
+### Persyaratan teknis
+
+Buat tipe data bersama untuk seluruh event chat agar kedua adapter menggunakan struktur yang konsisten.
+
+Contoh:
+
+```typescript
+type Platform = "youtube" | "tiktok";
+
+interface ChatMessage {
+  id: string;
+  platform: Platform;
+  username: string;
+  displayName?: string;
+  avatar?: string;
+  message: string;
+  timestamp: number;
+  type: "chat";
+}
+```
+
+---
+
+## 7. OBS Browser Source Integration
+
+Aplikasi harus menyediakan server lokal untuk menampilkan overlay pada OBS Studio.
+
+### Endpoint overlay
+
+Rancang endpoint berikut:
+
+- `http://127.0.0.1:3210/overlay/chat`
+- `http://127.0.0.1:3210/overlay/gifts`
+- `http://127.0.0.1:3210/overlay/all`
+
+Endpoint tersebut harus dibuat sebagai bagian dari implementasi aplikasi.
+
+### Chat Overlay
+
+Requirement:
+
+- Background transparan sepenuhnya.
+- Tidak menampilkan scrollbar.
+- Mendukung OBS Browser Source.
+- Ukuran overlay dapat disesuaikan.
+- Chat baru muncul secara real-time.
+- Overlay tetap berjalan ketika dashboard diminimalkan.
+- Overlay dapat tersambung kembali setelah koneksi terputus.
+- Chat YouTube dan TikTok memiliki badge berbeda.
+- Pengguna dapat mengatur jumlah pesan yang tampil.
+- Pengguna dapat mengatur durasi pesan.
+- Pengguna dapat mengatur ukuran font.
+- Pengguna dapat mengatur warna teks dan background.
+- Pengguna dapat mengatur opacity.
+- Pengguna dapat mengatur jarak antar-pesan.
+- Pengguna dapat memilih animasi masuk dan keluar.
+- Pengguna dapat menampilkan atau menyembunyikan avatar.
+
+### Contoh tampilan
+
+```text
+┌────────────────────────────────────┐
+│ [YT] PlayerOne                     │
+│      Halo semuanya!                │
+│                                    │
+│ [TT] PlayerTwo                     │
+│      Gas terus bang!               │
+└────────────────────────────────────┘
+```
+
+### Requirement teknis
+
+- Gunakan HTML, CSS, dan React untuk merender overlay.
+- Gunakan WebSocket untuk mengirim event ke overlay.
+- Server berjalan pada localhost secara default.
+- Overlay tidak bergantung pada dashboard yang sedang terlihat.
+- Koneksi WebSocket harus dapat dipulihkan.
+- Event tidak boleh terduplikasi ketika overlay reconnect.
+- Kegagalan overlay tidak boleh menghentikan pembacaan chat.
+
+---
+
+## 8. TikTok Gift Event System
+
+Buat sistem khusus untuk menangani gift TikTok LIVE.
+
+### Fitur
+
+- Membaca event gift dari `tiktok-live-connector`.
+- Mengambil username pengirim.
+- Mengambil display name jika tersedia.
+- Mengambil gift ID jika tersedia.
+- Mengambil nama gift jika tersedia.
+- Mengambil jumlah gift.
+- Mengambil timestamp jika tersedia.
+- Membedakan gift baru dan update gift streak.
+- Mengirim event valid ke Gift Queue.
+- Menampilkan event pada dashboard.
+- Menampilkan animasi pada OBS.
+- Menyediakan riwayat gift selama aplikasi berjalan.
+
+### Format data gift internal
+
+```json
+{
+  "id": "gift-event-001",
+  "platform": "tiktok",
+  "type": "gift",
+  "username": "PlayerTwo",
+  "displayName": "Player Two",
+  "giftId": "5655",
+  "giftName": "Rose",
+  "giftCount": 5,
+  "timestamp": 1793000000000
+}
+```
+
+Format tersebut adalah skema internal aplikasi, bukan payload asli library.
+
+### Penanganan gift streak
+
+- Periksa indikator streak yang tersedia dari library.
+- Jangan menghitung setiap update streak sebagai gift baru.
+- Perbarui jumlah gift ketika streak bertambah.
+- Proses gift final sesuai informasi event yang tersedia.
+- Cegah duplikasi event.
+- Jika metadata gift tidak lengkap, gunakan fallback.
+- Pastikan jumlah gift yang ditampilkan tidak terhitung ganda.
+
+---
+
+## 9. Gift Animation System
+
+Buat sistem animasi gift yang berjalan pada OBS Browser Source.
+
+### Alur animasi
+
+1. Event gift diterima.
+2. Sistem memvalidasi dan menormalisasi event.
+3. Event masuk ke antrean gift.
+4. Overlay menerima event melalui WebSocket.
+5. Animasi gift muncul.
+6. Nama pengirim dan jumlah gift ditampilkan.
+7. Animasi selesai.
+8. Sistem memproses gift berikutnya.
+
+### Contoh tampilan
+
+```text
+       ✨ GIFT ALERT ✨
+
+          Player Two
+
+          ROSE × 5
+```
+
+### Jenis animasi
+
+- Slide In
+- Fade In
+- Pop Up
+- Bounce
+- Slide Out
+- Fade Out
+
+Gunakan CSS Keyframes untuk animasi dasar agar ringan dan mudah dikustomisasi.
+
+### Pengaturan animasi
+
+- Enable/Disable Gift Animation
+- Animation Duration
+- Animation Preset
+- Gift Image
+- Display Username
+- Display Gift Name
+- Display Gift Count
+- Sound Effect
+- Queue Limit
+- Test Gift
+
+### Persyaratan tambahan
+
+- Animasi berjalan di OBS tanpa memerlukan dashboard terbuka.
+- Animasi memiliki background transparan.
+- Gift baru tidak langsung menimpa animasi yang sedang berjalan.
+- Event diproses melalui antrean FIFO.
+- Antrean memiliki batas maksimum.
+- Gift dari pengirim yang sama dapat diperbarui ketika merupakan bagian dari streak.
+- Sediakan gambar atau animasi fallback jika gambar gift tidak tersedia.
+- Pengguna dapat menjalankan test animation tanpa live stream.
+
+---
+
+## 10. Event Queue System
+
+Buat sistem antrean untuk menangani chat dan gift secara terpisah.
+
+### Chat Queue
+
+- Memproses event chat secara asynchronous.
+- Menjaga urutan penerimaan event.
+- Membatasi jumlah chat yang disimpan.
+- Menghindari duplikasi pesan.
+- Tidak menghambat penerimaan event baru.
+
+### Gift Queue
+
+- Menggunakan FIFO.
+- Menjalankan satu animasi aktif pada satu waktu untuk MVP.
+- Memiliki batas maksimum antrean.
+- Menghindari duplikasi event.
+- Mendukung update gift streak.
+- Menghapus event yang telah selesai diproses.
+- Menangani event yang tidak valid.
+- Tetap menerima event meskipun overlay sedang reconnect.
+
+---
+
+## 11. Arsitektur Aplikasi
+
+Gunakan arsitektur modular agar setiap komponen dapat dikembangkan secara independen.
+
+```text
+Electron Application
+│
+├── React Dashboard
+│   ├── Connection Panel
+│   ├── Unified Chat
+│   ├── Gift Event Panel
+│   └── Settings
+│
+├── Electron Main Process
+│   ├── YouTube Adapter
+│   │   └── youtubei.js
+│   │
+│   ├── TikTok Adapter
+│   │   └── tiktok-live-connector
+│   │
+│   ├── Event Normalizer
+│   ├── Chat Event Manager
+│   ├── Gift Event Manager
+│   ├── Gift Queue
+│   └── Local Overlay Server
+│       ├── HTTP
+│       └── WebSocket
+│
+└── OBS Browser Source
+    ├── Chat Overlay
+    ├── Gift Overlay
+    └── Combined Overlay
+```
+
+### Alur data
+
+1. Pengguna memasukkan informasi live stream.
+2. Adapter YouTube dan TikTok membuat koneksi secara independen.
+3. Adapter menerima chat dan gift.
+4. Event dinormalisasi ke format internal.
+5. Chat diteruskan ke dashboard dan overlay.
+6. Gift diteruskan ke Gift Queue.
+7. WebSocket mengirimkan event ke overlay OBS.
+8. Overlay menampilkan chat atau menjalankan animasi gift.
+
+### Ketentuan arsitektur
+
+- Pisahkan data processing dan UI rendering.
+- Pisahkan adapter YouTube dan TikTok.
+- Gunakan TypeScript untuk tipe data internal.
+- Gunakan Electron IPC untuk komunikasi main process dan renderer.
+- Gunakan preload API yang aman.
+- Gunakan WebSocket untuk komunikasi server ke overlay.
+- Pastikan error satu komponen tidak menghentikan seluruh aplikasi.
+
+---
+
+## 12. Struktur Folder
+
+Gunakan struktur proyek berikut sebagai rancangan awal.
+
+```text
+streamchat-desktop/
+├── electron/
+│   ├── main.ts
+│   ├── preload.ts
+│   ├── ipc/
+│   │   ├── chat.ipc.ts
+│   │   └── settings.ipc.ts
+│   └── services/
+│       ├── overlay-server.ts
+│       └── event-bus.ts
+│
+├── src/
+│   ├── app/
+│   ├── components/
+│   │   ├── ConnectionCard.tsx
+│   │   ├── ChatMessage.tsx
+│   │   ├── ChatList.tsx
+│   │   ├── GiftEventCard.tsx
+│   │   └── SettingsPanel.tsx
+│   │
+│   ├── services/
+│   │   ├── youtube-adapter.ts
+│   │   ├── tiktok-adapter.ts
+│   │   ├── event-normalizer.ts
+│   │   └── gift-queue.ts
+│   │
+│   ├── overlay/
+│   │   ├── ChatOverlay.tsx
+│   │   ├── GiftOverlay.tsx
+│   │   ├── CombinedOverlay.tsx
+│   │   ├── animations.css
+│   │   └── overlay.css
+│   │
+│   ├── types/
+│   │   ├── chat.ts
+│   │   ├── gift.ts
+│   │   └── connection.ts
+│   │
+│   └── styles/
+│       └── global.css
+│
+├── assets/
+│   ├── gifts/
+│   ├── sounds/
+│   └── fonts/
+│
+├── tests/
+├── package.json
+└── README.md
+```
+
+---
+
+## 13. Requirement Performa
+
+- Dashboard harus tetap responsif saat kedua platform aktif.
+- Pemrosesan event dilakukan secara asynchronous.
+- Jumlah chat dalam memori harus dibatasi.
+- Animasi tidak boleh memblokir pembacaan chat.
+- Server overlay harus berjalan selama aplikasi aktif.
+- Sistem harus menangani lonjakan event.
+- Overlay harus dapat reconnect tanpa restart aplikasi.
+
+### Target pengujian MVP
+
+- Chat ditampilkan dalam waktu maksimal sekitar satu detik setelah event diterima secara lokal, selama koneksi dan rendering normal.
+- Kedua platform dapat berjalan bersamaan.
+- Overlay dapat dipulihkan setelah WebSocket terputus.
+- Gift queue dapat menangani beberapa gift yang masuk bersamaan.
+
+Target performa harus divalidasi melalui pengujian nyata.
+
+---
+
+## 14. Requirement Keamanan
+
+- Aktifkan `contextIsolation`.
+- Gunakan sandbox Electron.
+- Jangan mengaktifkan Node Integration secara langsung pada renderer.
+- Gunakan preload API untuk komunikasi yang diperlukan.
+- Validasi data IPC.
+- Validasi event dari kedua platform.
+- Jangan memasukkan isi chat sebagai HTML mentah.
+- Batasi server overlay ke localhost secara default.
+- Jangan menyimpan kredensial atau cookie secara sembarangan.
+- Tangani error tanpa mengekspos informasi sensitif.
+
+---
+
+## 15. Error Handling dan Reconnect
+
+### YouTube
+
+- Stream tidak ditemukan.
+- Live chat tidak tersedia.
+- Koneksi gagal.
+- Koneksi terputus.
+- Library mengalami error.
+- Format event tidak sesuai.
+
+### TikTok
+
+- Live tidak ditemukan.
+- Kreator tidak sedang live.
+- Koneksi gagal.
+- Koneksi terputus.
+- Event gift tidak lengkap.
+- Metadata gift tidak tersedia.
+- Library mengalami error.
+
+### OBS Overlay
+
+- Server lokal tidak berjalan.
+- WebSocket terputus.
+- Browser Source di-refresh.
+- Overlay gagal memuat aset.
+- Event diterima berulang.
+
+### Requirement
+
+- Tampilkan error yang mudah dipahami.
+- Gunakan reconnect dengan exponential backoff.
+- Jangan melakukan reconnect tanpa jeda.
+- Platform yang masih terhubung harus tetap berfungsi.
+- Bersihkan listener saat koneksi ditutup.
+- Hindari event listener ganda setelah reconnect.
+
+---
+
+## 16. Pengaturan Aplikasi
+
+Simpan konfigurasi pengguna secara lokal.
+
+### Pengaturan koneksi
+
+- Username TikTok.
+- URL atau ID live YouTube.
+- Auto Connect.
+- Reconnect Settings.
+
+### Pengaturan chat
+
+- Font Family.
+- Font Size.
+- Text Color.
+- Background Color.
+- Background Opacity.
+- Maximum Visible Messages.
+- Message Duration.
+- Show Avatar.
+- Show Platform Badge.
+- Chat Animation.
+
+### Pengaturan gift
+
+- Enable Gift Animation.
+- Animation Preset.
+- Animation Duration.
+- Show Username.
+- Show Gift Name.
+- Show Gift Count.
+- Sound Effect.
+- Queue Limit.
+
+### Pengaturan OBS
+
+- Local Server Port.
+- Chat Overlay URL.
+- Gift Overlay URL.
+- Combined Overlay URL.
+- Overlay Width.
+- Overlay Height.
+
+Konfigurasi harus tersimpan ketika aplikasi ditutup dan digunakan kembali saat aplikasi dibuka.
+
+---
+
+## 17. Backlog Pengembangan
+
+### Prioritas P0 — MVP
+
+- Setup Electron, React, TypeScript, dan Vite.
+- Implementasi koneksi YouTube.
+- Implementasi koneksi TikTok.
+- Implementasi Unified Chat.
+- Implementasi platform badge.
+- Implementasi Local Overlay Server.
+- Implementasi WebSocket.
+- Implementasi Chat Overlay.
+- Implementasi TikTok Gift Reader.
+- Implementasi Gift Queue.
+- Implementasi Gift Animation.
+- Implementasi transparansi overlay.
+
+### Prioritas P1
+
+- Auto Reconnect.
+- Pengaturan desain overlay.
+- Pengaturan animasi gift.
+- Test Chat.
+- Test Gift.
+- Penyimpanan konfigurasi.
+- Windows Installer.
+- Event Log.
+
+### Prioritas P2
+
+- Event follow TikTok.
+- Event share TikTok.
+- Statistik jumlah chat.
+- Statistik gift.
+- Filter chat lanjutan.
+- Preset desain overlay.
+- Ekspor event log.
+
+---
+
+## 18. Acceptance Criteria
+
+Aplikasi dinyatakan memenuhi kebutuhan MVP jika:
+
+1. Aplikasi dapat berjalan sebagai desktop app di Windows.
+2. YouTube live chat dapat dibaca menggunakan `youtubei.js`.
+3. TikTok live chat dapat dibaca menggunakan `tiktok-live-connector`.
+4. Chat YouTube dan TikTok tampil dalam satu dashboard.
+5. Setiap chat memiliki identitas platform yang jelas.
+6. Pengguna dapat memfilter chat berdasarkan platform.
+7. Chat overlay dapat ditambahkan melalui OBS Browser Source.
+8. Overlay memiliki background transparan.
+9. Chat tampil secara real-time di OBS.
+10. TikTok gift event dapat diterima dan dinormalisasi.
+11. Gift dapat memicu animasi pada OBS.
+12. Beberapa gift dapat diproses melalui antrean.
+13. Gift streak tidak dihitung ganda.
+14. Koneksi satu platform dapat gagal tanpa menghentikan platform lainnya.
+15. Overlay dapat reconnect tanpa restart aplikasi.
+16. Pengaturan overlay tersimpan secara lokal.
+17. Aplikasi tetap responsif saat kedua platform aktif.
+
+---
+
+## 19. Batasan MVP
+
+Untuk menjaga ruang lingkup tetap realistis, versi pertama tidak perlu mencakup:
+
+- Mengirim chat ke YouTube atau TikTok.
+- Sistem moderasi chat tingkat lanjut.
+- Integrasi pembayaran.
+- Penyimpanan database cloud.
+- Dashboard statistik kompleks.
+- Sistem multi-user.
+- Sinkronisasi konfigurasi melalui akun.
+- Editor animasi visual yang kompleks.
+
+Fokus versi pertama adalah membaca chat, menampilkan overlay OBS, dan menjalankan animasi gift TikTok.
+
+---
+
+## 20. Referensi
+
+- Electron: https://www.electronjs.org/
+- Electron Security: https://www.electronjs.org/docs/latest/tutorial/security
+- YouTube.js: https://github.com/LuanRT/YouTube.js
+- TikTok LIVE Connector: https://github.com/isaackogan/TikTokLive
+- TikTok LIVE Connector Documentation: https://ttlc.docs.isaackogan.com/
+- OBS Studio: https://obsproject.com/
+
+---
+
+## Kesimpulan
+
+Bangun StreamChat Desktop menggunakan Electron, React, TypeScript, `youtubei.js`, dan `tiktok-live-connector`.
+
+Prioritas utama adalah:
+
+1. Membaca live chat YouTube dan TikTok secara bersamaan.
+2. Menggabungkan chat dalam satu dashboard.
+3. Menampilkan chat dengan identitas platform berbeda di OBS.
+4. Membaca gift TikTok.
+5. Menampilkan animasi gift otomatis melalui OBS Browser Source.
+6. Menjaga aplikasi tetap responsif dan stabil selama streaming.
