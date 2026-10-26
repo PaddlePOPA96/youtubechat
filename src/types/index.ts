@@ -75,10 +75,10 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  youtubeTarget: '',
-  tiktokUsername: '',
+  youtubeTarget: 'https://www.youtube.com/watch?v=evTweOqSwz4',
+  tiktokUsername: 'mygnuga',
   tiktokApiKey: 'euler_ZDNhYjA2YTNjYjM5ZDRlMDM4MGFjMTEyYTFlYmQ5NDJlYzE5NzQ1ZDgyNGY2YWVlOGU1OTkz',
-  customBackendUrl: '',
+  customBackendUrl: 'https://gory-ghost-746qr676wgp3xrjj-3210.app.github.dev',
   autoConnect: false,
   overlayPort: 3210,
 
