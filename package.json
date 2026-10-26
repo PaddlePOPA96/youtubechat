@@ -6,7 +6,9 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && npm run electron:dev\"",
-    "dev:renderer": "vite",
+    "dev:renderer": "concurrently -k \"tsx server.ts\" \"vite\"",
+    "dev:web": "concurrently -k \"tsx server.ts\" \"vite\"",
+    "server": "tsx server.ts",
     "electron:dev": "npm run build:electron && cross-env NODE_ENV=development VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
     "build:electron": "tsup electron/main.ts electron/preload.ts --format cjs --out-dir dist-electron --external electron,youtubei.js,tiktok-live-connector,ws",
     "build:renderer": "vite build",

@@ -2,6 +2,28 @@ import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { ChatMessage, GiftEvent, AppSettings, DEFAULT_SETTINGS } from '../../src/types';
 import { eventBus } from './event-bus';
+import { youtubeAdapter } from './youtube-adapter';
+import { tiktokAdapter } from './tiktok-adapter';
+import { settingsStore } from './store';
+import { giftQueue } from './gift-queue';
+import { sendTestChatMessage, sendTestGiftEvent } from './test-generator';
+
+function parseJsonBody(req: http.IncomingMessage): Promise<any> {
+  return new Promise((resolve) => {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+    });
+    req.on('end', () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch {
+        resolve({});
+      }
+    });
+    req.on('error', () => resolve({}));
+  });
+}
 
 export class OverlayServer {
   private server: http.Server | null = null;
@@ -31,6 +53,7 @@ export class OverlayServer {
 
       this.lastGift = gift;
       this.broadcast({ type: 'gift-alert', data: gift });
+      this.broadcast({ type: 'gift', data: gift });
 
       // Forward gift notification into chat feed so it also appears in the chat stream
       const giftChatMsg: ChatMessage = {
@@ -53,6 +76,14 @@ export class OverlayServer {
 
     eventBus.on('gift-alert', handleGift);
     eventBus.on('gift-event', handleGift);
+
+    eventBus.on('status-change', (platform, status, error) => {
+      this.broadcast({ type: 'status-change', platform, status, error });
+    });
+
+    eventBus.on('log', (level, message) => {
+      this.broadcast({ type: 'log', level, message });
+    });
 
     eventBus.on('settings-updated', (settings) => {
       this.currentSettings = { ...settings };
@@ -81,10 +112,11 @@ export class OverlayServer {
         this.stop();
       }
 
-      this.server = http.createServer((req, res) => {
-        // Enable CORS
+      this.server = http.createServer(async (req, res) => {
+        // Enable CORS for API & Web access
         res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
         if (req.method === 'OPTIONS') {
           res.writeHead(204);
@@ -95,6 +127,156 @@ export class OverlayServer {
         const url = new URL(req.url || '/', `http://127.0.0.1:${this.port}`);
         const pathname = (url.pathname || '/').toLowerCase().replace(/\/+$/, '') || '/';
 
+        // --- REST API Endpoints ---
+        if (pathname === '/api/status') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              status: 'ok',
+              youtube: {
+                status: youtubeAdapter.getStatus(),
+                target: youtubeAdapter.getTarget(),
+              },
+              tiktok: {
+                status: tiktokAdapter.getStatus(),
+                username: tiktokAdapter.getUsername(),
+              },
+              settings: settingsStore.getSettings(),
+            })
+          );
+          return;
+        }
+
+        if (pathname === '/api/youtube/connect' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          try {
+            if (body.target) {
+              settingsStore.saveSettings({ youtubeTarget: body.target });
+            }
+            await youtubeAdapter.connect(body.target || '');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
+          } catch (err: any) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, error: err.message }));
+          }
+          return;
+        }
+
+        if (pathname === '/api/youtube/disconnect' && req.method === 'POST') {
+          youtubeAdapter.disconnect();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+          return;
+        }
+
+        if (pathname === '/api/youtube/status') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              status: youtubeAdapter.getStatus(),
+              target: youtubeAdapter.getTarget(),
+            })
+          );
+          return;
+        }
+
+        if (pathname === '/api/tiktok/connect' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          try {
+            const current = settingsStore.getSettings();
+            if (body.username) {
+              settingsStore.saveSettings({ tiktokUsername: body.username });
+            }
+            await tiktokAdapter.connect(body.username || '', body.apiKey || current.tiktokApiKey);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
+          } catch (err: any) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, error: err.message }));
+          }
+          return;
+        }
+
+        if (pathname === '/api/tiktok/disconnect' && req.method === 'POST') {
+          tiktokAdapter.disconnect();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+          return;
+        }
+
+        if (pathname === '/api/tiktok/status') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              status: tiktokAdapter.getStatus(),
+              username: tiktokAdapter.getUsername(),
+            })
+          );
+          return;
+        }
+
+        if (pathname === '/api/settings') {
+          if (req.method === 'POST') {
+            const body = await parseJsonBody(req);
+            const saved = settingsStore.saveSettings(body);
+            this.updateSettings(saved);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(saved));
+          } else {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(settingsStore.getSettings()));
+          }
+          return;
+        }
+
+        if (pathname === '/api/test/chat' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          const msg = sendTestChatMessage(body.custom);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, message: msg }));
+          return;
+        }
+
+        if (pathname === '/api/test/gift' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          const gift = sendTestGiftEvent(body.custom);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, gift }));
+          return;
+        }
+
+        if (pathname === '/api/gift/replay' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          if (body.gift) {
+            const replay: GiftEvent = {
+              ...body.gift,
+              id: `replay-${Date.now()}-${body.gift.giftId || 'g'}`,
+              timestamp: Date.now(),
+            };
+            giftQueue.enqueueGift(replay);
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+          return;
+        }
+
+        if (pathname === '/api/overlay/urls') {
+          const s = settingsStore.getSettings();
+          const p = s.overlayPort || this.port;
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              port: p,
+              chat: `http://127.0.0.1:${p}/overlay/chat`,
+              gifts: `http://127.0.0.1:${p}/overlay/gifts`,
+              all: `http://127.0.0.1:${p}/overlay/all`,
+            })
+          );
+          return;
+        }
+
+        // --- OBS Overlays HTML ---
         if (
           pathname === '/overlay/chat' ||
           pathname === '/overlay/chats' ||
@@ -131,7 +313,7 @@ export class OverlayServer {
       this.wss = new WebSocketServer({ server: this.server, path: '/ws' });
 
       this.wss.on('connection', (ws: WebSocket) => {
-        eventBus.emit('log', 'info', `[OverlayServer] Client overlay connected. Total: ${this.wss?.clients.size}`);
+        eventBus.emit('log', 'info', `[OverlayServer] Client connected. Total: ${this.wss?.clients.size}`);
 
         // Send initial state to newly connected client
         const recentGiftValid =
@@ -142,23 +324,60 @@ export class OverlayServer {
             type: 'init',
             settings: this.currentSettings,
             recentChats: this.recentChats.slice(-this.currentSettings.chatMaxMessages),
-            recentGift: recentGiftValid
+            recentGift: recentGiftValid,
+            youtube: {
+              status: youtubeAdapter.getStatus(),
+              target: youtubeAdapter.getTarget(),
+            },
+            tiktok: {
+              status: tiktokAdapter.getStatus(),
+              username: tiktokAdapter.getUsername(),
+            },
           })
         );
 
-        ws.on('message', (message: string) => {
+        ws.on('message', async (message: string) => {
           try {
             const data = JSON.parse(message.toString());
             if (data.type === 'ping') {
               ws.send(JSON.stringify({ type: 'pong' }));
+              return;
             }
-          } catch {
-            // ignore
+
+            // WebSocket actions sent from Web/Codespaces frontend
+            if (data.action === 'youtube:connect' && data.target) {
+              settingsStore.saveSettings({ youtubeTarget: data.target });
+              await youtubeAdapter.connect(data.target);
+            } else if (data.action === 'youtube:disconnect') {
+              youtubeAdapter.disconnect();
+            } else if (data.action === 'tiktok:connect' && data.username) {
+              const current = settingsStore.getSettings();
+              settingsStore.saveSettings({ tiktokUsername: data.username });
+              await tiktokAdapter.connect(data.username, data.apiKey || current.tiktokApiKey);
+            } else if (data.action === 'tiktok:disconnect') {
+              tiktokAdapter.disconnect();
+            } else if (data.action === 'settings:save' && data.settings) {
+              const updated = settingsStore.saveSettings(data.settings);
+              this.updateSettings(updated);
+            } else if (data.action === 'test:chat') {
+              sendTestChatMessage(data.custom);
+            } else if (data.action === 'test:gift') {
+              sendTestGiftEvent(data.custom);
+            } else if (data.action === 'gift:replay' && data.gift) {
+              const replay: GiftEvent = {
+                ...data.gift,
+                id: `replay-${Date.now()}-${data.gift.giftId || 'g'}`,
+                timestamp: Date.now(),
+              };
+              giftQueue.enqueueGift(replay);
+            }
+          } catch (err: any) {
+            eventBus.emit('log', 'error', `[OverlayServer] Action error: ${err.message}`);
           }
         });
 
         ws.on('close', () => {
-          eventBus.emit('log', 'info', `[OverlayServer] Client overlay disconnected. Total: ${this.wss?.clients.size}`);
+          eventBus.emit('log', 'info', `[OverlayServer] Client disconnected. Total: ${this.wss?.clients.size}`);
         });
 
         ws.on('error', (err) => {

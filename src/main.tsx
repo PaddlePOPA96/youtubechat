@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import './services/web-bridge';
 import { App } from './App';
 import './styles/index.css';
 
