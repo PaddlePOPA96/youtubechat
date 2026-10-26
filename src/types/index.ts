@@ -77,7 +77,7 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   youtubeTarget: '',
   tiktokUsername: '',
-  tiktokApiKey: '',
+  tiktokApiKey: 'euler_ZDNhYjA2YTNjYjM5ZDRlMDM4MGFjMTEyYTFlYmQ5NDJlYzE5NzQ1ZDgyNGY2YWVlOGU1OTkz',
   customBackendUrl: '',
   autoConnect: false,
   overlayPort: 3210,
