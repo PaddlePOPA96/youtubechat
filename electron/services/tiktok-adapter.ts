@@ -99,7 +99,7 @@ export class TikTokAdapter {
     const effectiveApiKey =
       (apiKey && apiKey.trim()) ||
       process.env.SIGN_API_KEY ||
-      'euler_ZDNhYjA2YTNjYjM5ZDRlMDM4MGFjMTEyYTFlYmQ5NDJlYzE5NzQ1ZDgyNGY2YWVlOGU1OTkz';
+      '';
 
     if (effectiveApiKey) {
       process.env.SIGN_API_KEY = effectiveApiKey;

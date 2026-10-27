@@ -113,8 +113,18 @@ export class OverlayServer {
       }
 
       this.server = http.createServer(async (req, res) => {
-        // Enable CORS for API & Web access
-        res.setHeader('Access-Control-Allow-Origin', '*');
+        // Safe CORS policy: allow local origins, reject unauthorized web origins for mutating endpoints
+        const origin = req.headers.origin;
+        const isAllowedOrigin =
+          !origin ||
+          origin === 'null' ||
+          /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+
+        if (isAllowedOrigin && origin) {
+          res.setHeader('Access-Control-Allow-Origin', origin);
+        } else if (!origin) {
+          res.setHeader('Access-Control-Allow-Origin', '*');
+        }
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
@@ -124,12 +134,24 @@ export class OverlayServer {
           return;
         }
 
+        // For state-mutating requests (POST) on /api/*, disallow untrusted web origins
+        if (req.method === 'POST' && origin && !isAllowedOrigin) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'Forbidden cross-origin request' }));
+          return;
+        }
+
         const url = new URL(req.url || '/', `http://127.0.0.1:${this.port}`);
         const pathname = (url.pathname || '/').toLowerCase().replace(/\/+$/, '') || '/';
 
         // --- REST API Endpoints ---
         if (pathname === '/api/status') {
           res.writeHead(200, { 'Content-Type': 'application/json' });
+          const rawSettings = settingsStore.getSettings();
+          const safeSettings = {
+            ...rawSettings,
+            tiktokApiKey: rawSettings.tiktokApiKey ? '••••••••' : ''
+          };
           res.end(
             JSON.stringify({
               status: 'ok',
@@ -141,7 +163,7 @@ export class OverlayServer {
                 status: tiktokAdapter.getStatus(),
                 username: tiktokAdapter.getUsername(),
               },
-              settings: settingsStore.getSettings(),
+              settings: safeSettings,
             })
           );
           return;
@@ -314,7 +336,12 @@ export class OverlayServer {
       // Setup WebSocket Server
       this.wss = new WebSocketServer({ server: this.server, path: '/ws' });
 
-      this.wss.on('connection', (ws: WebSocket) => {
+      this.wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
+        const origin = req.headers.origin;
+        if (origin && origin !== 'null' && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+          ws.close(1008, 'Unauthorized origin');
+          return;
+        }
         eventBus.emit('log', 'info', `[OverlayServer] Client connected. Total: ${this.wss?.clients.size}`);
 
         // Send initial state to newly connected client
@@ -394,7 +421,7 @@ export class OverlayServer {
           this.currentSettings.overlayPort = this.port;
           setTimeout(() => {
             if (this.server) {
-              this.server.listen(this.port, '0.0.0.0');
+              this.server.listen(this.port, '127.0.0.1');
             }
           }, 200);
         } else {
@@ -403,7 +430,7 @@ export class OverlayServer {
         }
       });
 
-      this.server.listen(this.port, '0.0.0.0', () => {
+      this.server.listen(this.port, '127.0.0.1', () => {
         eventBus.emit('log', 'info', `[OverlayServer] Server listening on port ${this.port} (http://127.0.0.1:${this.port})`);
         resolve();
       });
@@ -856,7 +883,7 @@ export class OverlayServer {
           var avatarUrl = msg.avatar || (msg.platform === 'youtube'
             ? 'https://api.dicebear.com/7.x/identicon/svg?seed=' + encodeURIComponent(msg.username)
             : 'https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(msg.username));
-          avatarHtml = '<img class="chat-avatar" src="' + avatarUrl + '" onerror="this.remove()" />';
+          avatarHtml = '<img class="chat-avatar" src="' + escapeHtml(avatarUrl) + '" onerror="this.remove()" />';
         }
 
         var badgeHtml = '';
@@ -966,7 +993,7 @@ export class OverlayServer {
         // PURE NATIVE TIKTOK FLOATING STICKER (NO USERNAME, NO GIFT NAME, NO BOX)
         card.innerHTML =
           '<div class="tiktok-sticker-wrapper">' +
-            '<img class="tiktok-sticker-img" src="' + stickerUrl + '" onerror="handleGiftImgError(this)" />' +
+            '<img class="tiktok-sticker-img" src="' + escapeHtml(stickerUrl) + '" onerror="handleGiftImgError(this)" />' +
             countHtml +
           '</div>';
 
@@ -1035,7 +1062,11 @@ export class OverlayServer {
           if (closeIdx !== -1) {
             var url = parts[i].substring(0, closeIdx);
             var rest = parts[i].substring(closeIdx + 1);
-            res += '<img class="yt-custom-emote" src="' + url + '" onerror="this.remove()" />' + rest;
+            if (/^https?:\/\//i.test(url)) {
+              res += '<img class="yt-custom-emote" src="' + escapeHtml(url) + '" onerror="this.remove()" />' + rest;
+            } else {
+              res += '[yt-emote:' + url + ']' + rest;
+            }
           } else {
             res += '[yt-emote:' + parts[i];
           }

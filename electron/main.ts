@@ -42,7 +42,7 @@ async function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false, // needed for custom IPC preload
+      sandbox: true,
     },
   });
 
@@ -266,8 +266,13 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('open:external', async (_event, url: string) => {
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      await shell.openExternal(url);
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        await shell.openExternal(url);
+      }
+    } catch {
+      // Ignore invalid URLs
     }
   });
 
