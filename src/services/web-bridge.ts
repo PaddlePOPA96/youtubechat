@@ -35,6 +35,7 @@ interface WebBridgeAPI {
   onUpdateAvailable?: (callback: (info: any) => void) => () => void;
   onUpdateProgress?: (callback: (progress: any) => void) => () => void;
   onUpdateDownloaded?: (callback: (info: any) => void) => () => void;
+  onUpdateNotAvailable?: (callback: () => void) => () => void;
 }
 
 class WebBridge {
@@ -439,6 +440,7 @@ class WebBridge {
       onUpdateAvailable: () => () => {},
       onUpdateProgress: () => () => {},
       onUpdateDownloaded: () => () => {},
+      onUpdateNotAvailable: () => () => {},
     };
   }
 }

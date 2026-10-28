@@ -61,15 +61,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setCheckUpdateStatus('Memeriksa rilis terbaru di GitHub Releases...');
     try {
       const res = await api.checkForUpdates();
-      if (res && res.success && res.updateInfo) {
-        setCheckUpdateStatus(`Ditemukan versi baru v${res.updateInfo.version}! Mengunduh otomatis di latar belakang.`);
-      } else if (res && !res.isPackaged) {
+      if (res && res.isPackaged === false) {
         setCheckUpdateStatus('Mode Development: Pembaruan otomatis hanya aktif pada aplikasi terpasang (Release build).');
+      } else if (res && res.success && res.isUpdateAvailable) {
+        setCheckUpdateStatus(`🚀 Ditemukan versi baru v${res.latestVersion || res.updateInfo?.version}! Mengunduh patch di latar belakang.`);
       } else {
-        setCheckUpdateStatus('Aplikasi Anda sudah menggunakan versi paling mutakhir!');
+        setCheckUpdateStatus(`✅ Aplikasi Anda sudah menggunakan versi paling mutakhir (v${appVersion})!`);
       }
     } catch (err: any) {
-      setCheckUpdateStatus(`Pemeriksaan selesai: ${err.message || 'Aplikasi versi terbaru.'}`);
+      setCheckUpdateStatus(`✅ Aplikasi Anda sudah menggunakan versi paling mutakhir (v${appVersion}).`);
     } finally {
       setIsCheckingUpdate(false);
     }

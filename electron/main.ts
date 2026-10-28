@@ -309,13 +309,24 @@ function registerIpcHandlers() {
     if (!app.isPackaged) return { isPackaged: false, message: 'Running in development mode' };
     try {
       const res = await autoUpdater.checkForUpdates();
-      return { success: true, updateInfo: res?.updateInfo };
+      const currentVersion = app.getVersion();
+      const latestVersion = res?.updateInfo?.version;
+      const isUpdateAvailable = Boolean(latestVersion && latestVersion !== currentVersion);
+      return {
+        success: true,
+        isUpdateAvailable,
+        currentVersion,
+        latestVersion,
+        updateInfo: res?.updateInfo
+      };
     } catch (err: any) {
       return { success: false, error: err.message };
     }
   });
 
   ipcMain.handle('app:installUpdate', () => {
+    youtubeAdapter.disconnect();
+    tiktokAdapter.disconnect();
     autoUpdater.quitAndInstall(false, true);
   });
 

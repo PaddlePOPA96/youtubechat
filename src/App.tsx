@@ -232,6 +232,14 @@ export const App: React.FC = () => {
       });
     }
 
+    let unsubUpdateNotAvailable = () => {};
+    if (api.onUpdateNotAvailable) {
+      unsubUpdateNotAvailable = api.onUpdateNotAvailable(() => {
+        setUpdateInfo(null);
+        addLog('info', '[Updater] Aplikasi sudah versi terbaru.');
+      });
+    }
+
     return () => {
       unsubChat();
       unsubGift();
@@ -240,6 +248,7 @@ export const App: React.FC = () => {
       unsubUpdateAvailable();
       unsubUpdateProgress();
       unsubUpdateDownloaded();
+      unsubUpdateNotAvailable();
     };
   }, [addLog]);
 
