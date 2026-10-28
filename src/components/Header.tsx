@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ChatBubbleLeftRightIcon,
   Squares2X2Icon,
   ChatBubbleBottomCenterTextIcon,
   ArrowTopRightOnSquareIcon,
   Cog6ToothIcon,
-  CommandLineIcon
+  CommandLineIcon,
+  SunIcon,
+  MoonIcon,
+  AdjustmentsHorizontalIcon
 } from '@heroicons/react/24/outline';
 import { ChatBubbleLeftRightIcon as ChatBubbleSolidIcon } from '@heroicons/react/24/solid';
 import { ConnectionStatus } from '../types';
@@ -22,6 +25,13 @@ interface HeaderProps {
   onToggleChatOnly: () => void;
   isPinned: boolean;
   onTogglePin: () => void;
+  isDarkMode: boolean;
+  onToggleDarkMode: () => void;
+  windowOpacity: number;
+  onChangeOpacity: (opacity: number) => void;
+  appVersion?: string;
+  hasUpdateReady?: boolean;
+  onOpenUpdateNotification?: () => void;
 }
 
 // Pushpin Icon component
@@ -56,7 +66,15 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleChatOnly,
   isPinned,
   onTogglePin,
+  isDarkMode,
+  onToggleDarkMode,
+  windowOpacity,
+  onChangeOpacity,
+  appVersion = '1.0.0',
+  hasUpdateReady,
+  onOpenUpdateNotification,
 }) => {
+  const [showOpacityMenu, setShowOpacityMenu] = useState(false);
   return (
     <header className="glass-panel" style={{
       padding: isChatOnly ? '8px 14px' : '14px 24px',
@@ -102,8 +120,48 @@ export const Header: React.FC<HeaderProps> = ({
               StreamChat
             </h1>
 
+            {/* Version and Update Ready Indicator */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span
+                className="badge-pill"
+                title={`StreamChat Desktop Versi ${appVersion}`}
+                style={{
+                  fontSize: isChatOnly ? '9px' : '10px',
+                  fontWeight: 700,
+                  padding: isChatOnly ? '1px 6px' : '2px 8px',
+                  background: 'rgba(0, 133, 238, 0.1)',
+                  color: '#0085ee',
+                  borderColor: 'rgba(0, 133, 238, 0.25)',
+                  cursor: 'default'
+                }}
+              >
+                v{appVersion}
+              </span>
+
+              {hasUpdateReady && (
+                <button
+                  type="button"
+                  onClick={onOpenUpdateNotification}
+                  className="badge-pill"
+                  title="Ada update versi baru siap dipasang! Klik untuk lihat"
+                  style={{
+                    fontSize: isChatOnly ? '9px' : '10px',
+                    fontWeight: 700,
+                    padding: isChatOnly ? '1px 6px' : '2px 8px',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.4)'
+                  }}
+                >
+                  🚀 Update Siap!
+                </button>
+              )}
+            </div>
+
             {/* Quick Status Chips in Chat-Only Mode */}
-            {isChatOnly ? (
+            {isChatOnly && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span className={`badge-status ${ytStatus}`} style={{ padding: '2px 7px', fontSize: '9px' }}>
                   <span className={`status-dot ${ytStatus === 'connecting' ? 'pulse' : ''}`} style={{ width: '5px', height: '5px' }} />
@@ -114,17 +172,6 @@ export const Header: React.FC<HeaderProps> = ({
                   TT
                 </span>
               </div>
-            ) : (
-              <span className="badge-pill" style={{
-                fontSize: '10px',
-                fontWeight: 700,
-                padding: '2px 8px',
-                background: '#e0f2fe',
-                color: '#0284c7',
-                borderColor: '#bae6fd'
-              }}>
-                v1.0 • Glow Blue
-              </span>
             )}
           </div>
 
@@ -181,6 +228,92 @@ export const Header: React.FC<HeaderProps> = ({
           <PinIcon pinned={isPinned} style={{ width: '15px', height: '15px', color: isPinned ? '#ffffff' : '#64748b' }} />
           <span>{isPinned ? 'Pinned' : 'Pin'}</span>
         </button>
+
+        {/* Dark Mode Toggle */}
+        <button
+          className="btn btn-secondary"
+          onClick={onToggleDarkMode}
+          title={isDarkMode ? 'Beralih ke Light Mode' : 'Beralih ke Dark Mode / Night Mode'}
+          style={{ padding: '6px 10px' }}
+        >
+          {isDarkMode ? <SunIcon style={{ width: '15px', height: '15px', color: '#f59e0b' }} /> : <MoonIcon style={{ width: '15px', height: '15px', color: '#64748b' }} />}
+        </button>
+
+        {/* Window Opacity Menu (Transparansi) */}
+        <div style={{ position: 'relative' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowOpacityMenu(!showOpacityMenu)}
+            title="Atur transparansi jendela (bisa tembus pandang ke game/desktop)"
+            style={{
+              padding: '6px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: windowOpacity < 100 ? '#0085ee' : undefined,
+              color: windowOpacity < 100 ? '#ffffff' : undefined,
+              borderColor: windowOpacity < 100 ? '#0085ee' : undefined
+            }}
+          >
+            <AdjustmentsHorizontalIcon style={{ width: '15px', height: '15px' }} />
+            <span style={{ fontSize: '11px', fontWeight: 700 }}>{windowOpacity}%</span>
+          </button>
+
+          {showOpacityMenu && (
+            <div
+              className="glass-panel"
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 8px)',
+                right: 0,
+                width: '210px',
+                padding: '14px',
+                zIndex: 99999,
+                borderRadius: '14px',
+                boxShadow: '0 12px 30px rgba(0,0,0,0.3)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700 }}>Transparansi</span>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#0085ee' }}>{windowOpacity}%</span>
+              </div>
+              <input
+                type="range"
+                min="25"
+                max="100"
+                step="5"
+                value={windowOpacity}
+                onChange={(e) => onChangeOpacity(Number(e.target.value))}
+                style={{ width: '100%', cursor: 'pointer', accentColor: '#0085ee' }}
+              />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px' }}>
+                {[100, 80, 60, 40].map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => onChangeOpacity(val)}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '4px 0',
+                      fontSize: '10px',
+                      justifyContent: 'center',
+                      background: windowOpacity === val ? '#0085ee' : undefined,
+                      color: windowOpacity === val ? '#ffffff' : undefined
+                    }}
+                  >
+                    {val}%
+                  </button>
+                ))}
+              </div>
+              <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.3 }}>
+                💡 Tip: Gabungkan dengan tombol <strong>Pin</strong> agar chat melayang tembus pandang di atas game kamu!
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* OBS Overlays (Only in normal mode) */}
         {!isChatOnly && (

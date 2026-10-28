@@ -72,6 +72,8 @@ export interface AppSettings {
   giftDelaySeconds: number;
   tiktokApiKey?: string;
   customBackendUrl?: string;
+  isDarkMode?: boolean;
+  windowOpacity?: number; // 20 - 100
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -81,6 +83,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   customBackendUrl: '',
   autoConnect: false,
   overlayPort: 3210,
+  isDarkMode: false,
+  windowOpacity: 100,
 
   chatFontFamily: "'Plus Jakarta Sans', 'Segoe UI Emoji', sans-serif",
   chatFontSize: 16,

@@ -290,6 +290,20 @@ function registerIpcHandlers() {
     return false;
   });
 
+  // Window Opacity & Transparency Control
+  ipcMain.handle('window:setOpacity', async (_event, opacity: number) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const clamped = Math.max(0.2, Math.min(1.0, opacity));
+      mainWindow.setOpacity(clamped);
+      return mainWindow.getOpacity();
+    }
+    return 1.0;
+  });
+
+  ipcMain.handle('window:getOpacity', async () => {
+    return mainWindow && !mainWindow.isDestroyed() ? mainWindow.getOpacity() : 1.0;
+  });
+
   // Differential Auto-Updater IPC
   ipcMain.handle('app:checkForUpdates', async () => {
     if (!app.isPackaged) return { isPackaged: false, message: 'Running in development mode' };
@@ -303,6 +317,10 @@ function registerIpcHandlers() {
 
   ipcMain.handle('app:installUpdate', () => {
     autoUpdater.quitAndInstall(false, true);
+  });
+
+  ipcMain.handle('app:getVersion', () => {
+    return app.getVersion();
   });
 }
 

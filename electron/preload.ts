@@ -34,11 +34,15 @@ export interface ElectronAPI {
   // Window Controls (Pin on Top)
   isAlwaysOnTop: () => Promise<boolean>;
   setAlwaysOnTop: (flag: boolean) => Promise<boolean>;
+  setOpacity: (opacity: number) => Promise<number>;
+  getOpacity: () => Promise<number>;
+  getVersion: () => Promise<string>;
 
   // Auto Updater
   checkForUpdates?: () => Promise<any>;
   installUpdate?: () => Promise<void>;
   onUpdateAvailable?: (callback: (info: any) => void) => () => void;
+  onUpdateProgress?: (callback: (progress: any) => void) => () => void;
   onUpdateDownloaded?: (callback: (info: any) => void) => () => void;
 }
 
@@ -90,6 +94,9 @@ const api: ElectronAPI = {
 
   isAlwaysOnTop: () => ipcRenderer.invoke('window:isAlwaysOnTop'),
   setAlwaysOnTop: (flag: boolean) => ipcRenderer.invoke('window:setAlwaysOnTop', flag),
+  setOpacity: (opacity: number) => ipcRenderer.invoke('window:setOpacity', opacity),
+  getOpacity: () => ipcRenderer.invoke('window:getOpacity'),
+  getVersion: () => ipcRenderer.invoke('app:getVersion'),
 
   checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
   installUpdate: () => ipcRenderer.invoke('app:installUpdate'),
@@ -97,6 +104,11 @@ const api: ElectronAPI = {
     const handler = (_event: any, info: any) => callback(info);
     ipcRenderer.on('updater:available', handler);
     return () => ipcRenderer.removeListener('updater:available', handler);
+  },
+  onUpdateProgress: (callback) => {
+    const handler = (_event: any, progress: any) => callback(progress);
+    ipcRenderer.on('updater:progress', handler);
+    return () => ipcRenderer.removeListener('updater:progress', handler);
   },
   onUpdateDownloaded: (callback) => {
     const handler = (_event: any, info: any) => callback(info);

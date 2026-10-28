@@ -26,6 +26,15 @@ interface WebBridgeAPI {
 
   isAlwaysOnTop: () => Promise<boolean>;
   setAlwaysOnTop: (flag: boolean) => Promise<boolean>;
+  setOpacity: (opacity: number) => Promise<number>;
+  getOpacity: () => Promise<number>;
+  getVersion: () => Promise<string>;
+
+  checkForUpdates?: () => Promise<any>;
+  installUpdate?: () => Promise<void>;
+  onUpdateAvailable?: (callback: (info: any) => void) => () => void;
+  onUpdateProgress?: (callback: (progress: any) => void) => () => void;
+  onUpdateDownloaded?: (callback: (info: any) => void) => () => void;
 }
 
 class WebBridge {
@@ -416,6 +425,20 @@ class WebBridge {
 
       isAlwaysOnTop: async () => false,
       setAlwaysOnTop: async () => false,
+      setOpacity: async (opacity: number) => {
+        if (typeof document !== 'undefined') {
+          document.documentElement.style.setProperty('--card-opacity', String(opacity));
+        }
+        return opacity;
+      },
+      getOpacity: async () => 1.0,
+      getVersion: async () => '1.0.0',
+
+      checkForUpdates: async () => ({ isPackaged: false, message: 'Running in browser/web mode' }),
+      installUpdate: async () => {},
+      onUpdateAvailable: () => () => {},
+      onUpdateProgress: () => () => {},
+      onUpdateDownloaded: () => () => {},
     };
   }
 }

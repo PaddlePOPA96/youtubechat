@@ -15,6 +15,7 @@ interface SettingsModalProps {
   onClose: () => void;
   settings: AppSettings;
   onSaveSettings: (settings: AppSettings) => void;
+  appVersion?: string;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -22,10 +23,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   settings,
   onSaveSettings,
+  appVersion = '1.0.0',
 }) => {
   const [form, setForm] = useState<AppSettings>(settings);
   const [activeTab, setActiveTab] = useState<'chat' | 'gift' | 'server'>('chat');
   const [isSavedAlert, setIsSavedAlert] = useState(false);
+  const [checkUpdateStatus, setCheckUpdateStatus] = useState<string | null>(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
 
   if (!isOpen) return null;
 
@@ -45,6 +49,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleReset = () => {
     setForm({ ...DEFAULT_SETTINGS });
+  };
+
+  const handleCheckUpdates = async () => {
+    const api = (window as any).electronAPI;
+    if (!api || !api.checkForUpdates) {
+      setCheckUpdateStatus('Periksa update hanya tersedia di aplikasi desktop StreamChat.');
+      return;
+    }
+    setIsCheckingUpdate(true);
+    setCheckUpdateStatus('Memeriksa rilis terbaru di GitHub Releases...');
+    try {
+      const res = await api.checkForUpdates();
+      if (res && res.success && res.updateInfo) {
+        setCheckUpdateStatus(`Ditemukan versi baru v${res.updateInfo.version}! Mengunduh otomatis di latar belakang.`);
+      } else if (res && !res.isPackaged) {
+        setCheckUpdateStatus('Mode Development: Pembaruan otomatis hanya aktif pada aplikasi terpasang (Release build).');
+      } else {
+        setCheckUpdateStatus('Aplikasi Anda sudah menggunakan versi paling mutakhir!');
+      }
+    } catch (err: any) {
+      setCheckUpdateStatus(`Pemeriksaan selesai: ${err.message || 'Aplikasi versi terbaru.'}`);
+    } finally {
+      setIsCheckingUpdate(false);
+    }
   };
 
   return (
@@ -544,6 +572,67 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </div>
               </label>
+
+              {/* Version & Auto-Updater Section */}
+              <div style={{
+                padding: '14px 16px',
+                borderRadius: '12px',
+                background: 'rgba(0, 133, 238, 0.05)',
+                border: '1px solid rgba(0, 133, 238, 0.2)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 800 }}>StreamChat Desktop</span>
+                      <span className="badge-pill" style={{
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        background: '#e0f2fe',
+                        color: '#0085ee',
+                        borderColor: '#bae6fd'
+                      }}>
+                        v{appVersion}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                      Pembaruan otomatis via GitHub Releases. Update terpasang saat aplikasi ditutup.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCheckUpdates}
+                    disabled={isCheckingUpdate}
+                    className="btn btn-secondary"
+                    style={{
+                      fontSize: '11px',
+                      padding: '6px 12px',
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {isCheckingUpdate ? 'Memeriksa...' : 'Periksa Update'}
+                  </button>
+                </div>
+
+                {checkUpdateStatus && (
+                  <div style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: checkUpdateStatus.includes('Gagal') ? '#ef4444' : '#0284c7',
+                    background: 'rgba(255, 255, 255, 0.7)',
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(0, 133, 238, 0.15)'
+                  }}>
+                    {checkUpdateStatus}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

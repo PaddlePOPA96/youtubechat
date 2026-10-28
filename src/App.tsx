@@ -7,11 +7,21 @@ import { SettingsModal } from './components/SettingsModal';
 import { OverlayLinksModal } from './components/OverlayLinksModal';
 import { LogDrawer, LogEntry } from './components/LogDrawer';
 import { Preloader } from './components/Preloader';
+import { UpdateNotification } from './components/UpdateNotification';
 import { ChatMessage, GiftEvent, ConnectionStatus, AppSettings, DEFAULT_SETTINGS } from './types';
 
 export const App: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [gifts, setGifts] = useState<GiftEvent[]>([]);
+
+  // App Version & Auto-Updater State
+  const [appVersion, setAppVersion] = useState<string>('1.0.0');
+  const [updateInfo, setUpdateInfo] = useState<{
+    version: string;
+    isDownloaded: boolean;
+    progress?: number | null;
+  } | null>(null);
+  const [isUpdateDismissed, setIsUpdateDismissed] = useState<boolean>(false);
 
   // YouTube Connection State
   const [ytStatus, setYtStatus] = useState<ConnectionStatus>('disconnected');
@@ -28,6 +38,42 @@ export const App: React.FC = () => {
   const [showAvatar, setShowAvatar] = useState<boolean>(true);
   const [isChatOnly, setIsChatOnly] = useState<boolean>(false);
   const [isPinned, setIsPinned] = useState<boolean>(false);
+
+  // Dark Mode & Window Opacity
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('streamchat_dark_mode');
+      if (saved !== null) return saved === 'true';
+    }
+    return false;
+  });
+
+  const [windowOpacity, setWindowOpacityState] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('streamchat_window_opacity');
+      if (saved) return Number(saved) || 100;
+    }
+    return 100;
+  });
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
+      localStorage.setItem('streamchat_dark_mode', String(isDarkMode));
+    }
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      localStorage.setItem('streamchat_window_opacity', String(windowOpacity));
+      document.documentElement.style.setProperty('--card-opacity', String(windowOpacity / 100));
+      document.documentElement.style.setProperty('--window-bg-opacity', String(windowOpacity / 100));
+      const api = (window as any).electronAPI;
+      if (api?.setOpacity) {
+        api.setOpacity(windowOpacity / 100);
+      }
+    }
+  }, [windowOpacity]);
 
   // Modals & Drawers
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -92,6 +138,13 @@ export const App: React.FC = () => {
       }).catch(() => {});
     }
 
+    // Get current App Version
+    if (api.getVersion) {
+      api.getVersion().then((v: string) => {
+        if (v) setAppVersion(v);
+      }).catch(() => {});
+    }
+
     // Subscribe to chat messages with deduplication
     const unsubChat = api.onChatMessage((msg: ChatMessage) => {
       setMessages((prev) => {
@@ -142,11 +195,51 @@ export const App: React.FC = () => {
       addLog(level, message);
     });
 
+    // Auto-Updater Listeners
+    let unsubUpdateAvailable = () => {};
+    if (api.onUpdateAvailable) {
+      unsubUpdateAvailable = api.onUpdateAvailable((info: any) => {
+        setUpdateInfo({
+          version: info?.version || 'terbaru',
+          isDownloaded: false,
+          progress: 0,
+        });
+        setIsUpdateDismissed(false);
+        addLog('info', `[Updater] Pembaruan v${info?.version || ''} ditemukan. Mengunduh patch...`);
+      });
+    }
+
+    let unsubUpdateProgress = () => {};
+    if (api.onUpdateProgress) {
+      unsubUpdateProgress = api.onUpdateProgress((prog: any) => {
+        setUpdateInfo((prev) => prev ? {
+          ...prev,
+          progress: prog?.percent ?? null,
+        } : null);
+      });
+    }
+
+    let unsubUpdateDownloaded = () => {};
+    if (api.onUpdateDownloaded) {
+      unsubUpdateDownloaded = api.onUpdateDownloaded((info: any) => {
+        setUpdateInfo({
+          version: info?.version || 'terbaru',
+          isDownloaded: true,
+          progress: 100,
+        });
+        setIsUpdateDismissed(false);
+        addLog('info', `[Updater] Patch v${info?.version || ''} berhasil diunduh dan siap diterapkan.`);
+      });
+    }
+
     return () => {
       unsubChat();
       unsubGift();
       unsubStatus();
       unsubLog();
+      unsubUpdateAvailable();
+      unsubUpdateProgress();
+      unsubUpdateDownloaded();
     };
   }, [addLog]);
 
@@ -278,6 +371,16 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleInstallUpdate = async () => {
+    const api = (window as any).electronAPI;
+    if (api && api.installUpdate) {
+      addLog('info', '[Updater] Menutup aplikasi untuk memasang patch update terbaru...');
+      await api.installUpdate();
+    } else {
+      addLog('info', '[Updater] Update akan otomatis terpasang saat aplikasi dimulai ulang.');
+    }
+  };
+
   return (
     <div className="glow-atmosphere" style={{
       display: 'flex',
@@ -305,6 +408,13 @@ export const App: React.FC = () => {
         onToggleChatOnly={() => setIsChatOnly(!isChatOnly)}
         isPinned={isPinned}
         onTogglePin={handleTogglePin}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+        windowOpacity={windowOpacity}
+        onChangeOpacity={(val) => setWindowOpacityState(val)}
+        appVersion={appVersion}
+        hasUpdateReady={Boolean(updateInfo?.isDownloaded)}
+        onOpenUpdateNotification={() => setIsUpdateDismissed(false)}
       />
 
       {/* Connection Panel (Hidden in Chat-Only Mode) */}
@@ -359,6 +469,7 @@ export const App: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onSaveSettings={handleSaveSettings}
+        appVersion={appVersion}
       />
 
       <OverlayLinksModal
@@ -374,6 +485,18 @@ export const App: React.FC = () => {
         logs={logs}
         onClearLogs={() => setLogs([])}
       />
+
+      {/* Auto-Update Notification Banner */}
+      {updateInfo && !isUpdateDismissed && (
+        <UpdateNotification
+          currentVersion={appVersion}
+          newVersion={updateInfo.version}
+          isDownloaded={updateInfo.isDownloaded}
+          downloadProgress={updateInfo.progress}
+          onInstallNow={handleInstallUpdate}
+          onDismiss={() => setIsUpdateDismissed(true)}
+        />
+      )}
     </div>
   );
 };
