@@ -56,7 +56,8 @@
       {
         "provider": "github",
         "owner": "PaddlePOPA96",
-        "repo": "youtubechat"
+        "repo": "youtubechat",
+        "releaseType": "release"
       }
     ],
     "files": [

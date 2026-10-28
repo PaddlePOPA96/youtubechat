@@ -362,7 +362,11 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('error', (err) => {
-    eventBus.emit('log', 'warn', `[Updater] Gagal periksa update: ${err.message}`);
+    if (err.message?.includes('Unable to find latest version') || err.message?.includes('406') || err.message?.includes('404')) {
+      eventBus.emit('log', 'warn', `[Updater] Belum ada rilisan publik di GitHub Releases (atau status rilis masih berupa Draft/Pre-release).`);
+    } else {
+      eventBus.emit('log', 'warn', `[Updater] Gagal periksa update: ${err.message}`);
+    }
   });
 
   // Check for updates shortly after start
