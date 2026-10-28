@@ -29,6 +29,8 @@ export const ChatList: React.FC<ChatListProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const bottomSentinelRef = useRef<HTMLDivElement>(null);
+  const isProgrammaticScroll = useRef(false);
 
   // Filter messages (in chatOnly mode, show all messages without filtering)
   const filteredMessages = messages.filter((msg) => {
@@ -44,27 +46,43 @@ export const ChatList: React.FC<ChatListProps> = ({
     return true;
   });
 
-  // Handle auto-scroll to bottom
-  useEffect(() => {
-    if (autoScroll && scrollContainerRef.current) {
+  const scrollToBottom = (smooth = false) => {
+    if (!scrollContainerRef.current) return;
+    isProgrammaticScroll.current = true;
+    if (smooth && bottomSentinelRef.current) {
+      bottomSentinelRef.current.scrollIntoView({ behavior: 'smooth' });
+    } else {
       scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
     }
-  }, [messages, autoScroll]);
+    setAutoScroll(true);
+    setTimeout(() => {
+      isProgrammaticScroll.current = false;
+    }, 200);
+  };
+
+  // Handle auto-scroll to bottom on every incoming message
+  useEffect(() => {
+    if (autoScroll && scrollContainerRef.current) {
+      isProgrammaticScroll.current = true;
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+        }
+        setTimeout(() => {
+          isProgrammaticScroll.current = false;
+        }, 150);
+      });
+    }
+  }, [messages.length, autoScroll]);
 
   // Detect when user scrolls manually
   const handleScroll = () => {
-    if (!scrollContainerRef.current) return;
+    if (!scrollContainerRef.current || isProgrammaticScroll.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-    const isAtBottom = scrollHeight - (scrollTop + clientHeight) < 50;
+    // Generous threshold (140px) to prevent accidental pause caused by subpixel / image loading
+    const isAtBottom = scrollHeight - (scrollTop + clientHeight) < 140;
     if (autoScroll !== isAtBottom) {
       setAutoScroll(isAtBottom);
-    }
-  };
-
-  const scrollToBottom = () => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
-      setAutoScroll(true);
     }
   };
 
@@ -265,6 +283,7 @@ export const ChatList: React.FC<ChatListProps> = ({
             />
           ))
         )}
+        <div ref={bottomSentinelRef} style={{ height: '1px', flexShrink: 0 }} />
       </div>
 
       {/* Floating Scroll to Bottom pill */}
@@ -277,7 +296,7 @@ export const ChatList: React.FC<ChatListProps> = ({
           zIndex: 10
         }}>
           <button
-            onClick={scrollToBottom}
+            onClick={() => scrollToBottom(true)}
             className="btn btn-primary"
             style={{
               padding: '6px 16px',
