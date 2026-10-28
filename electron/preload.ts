@@ -34,6 +34,12 @@ export interface ElectronAPI {
   // Window Controls (Pin on Top)
   isAlwaysOnTop: () => Promise<boolean>;
   setAlwaysOnTop: (flag: boolean) => Promise<boolean>;
+
+  // Auto Updater
+  checkForUpdates?: () => Promise<any>;
+  installUpdate?: () => Promise<void>;
+  onUpdateAvailable?: (callback: (info: any) => void) => () => void;
+  onUpdateDownloaded?: (callback: (info: any) => void) => () => void;
 }
 
 const api: ElectronAPI = {
@@ -84,6 +90,19 @@ const api: ElectronAPI = {
 
   isAlwaysOnTop: () => ipcRenderer.invoke('window:isAlwaysOnTop'),
   setAlwaysOnTop: (flag: boolean) => ipcRenderer.invoke('window:setAlwaysOnTop', flag),
+
+  checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
+  installUpdate: () => ipcRenderer.invoke('app:installUpdate'),
+  onUpdateAvailable: (callback) => {
+    const handler = (_event: any, info: any) => callback(info);
+    ipcRenderer.on('updater:available', handler);
+    return () => ipcRenderer.removeListener('updater:available', handler);
+  },
+  onUpdateDownloaded: (callback) => {
+    const handler = (_event: any, info: any) => callback(info);
+    ipcRenderer.on('updater:downloaded', handler);
+    return () => ipcRenderer.removeListener('updater:downloaded', handler);
+  },
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

@@ -1,4 +1,6 @@
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { ChatMessage, GiftEvent, AppSettings, DEFAULT_SETTINGS } from '../../src/types';
 import { eventBus } from './event-bus';
@@ -7,6 +9,26 @@ import { tiktokAdapter } from './tiktok-adapter';
 import { settingsStore } from './store';
 import { giftQueue } from './gift-queue';
 import { sendTestChatMessage, sendTestGiftEvent } from './test-generator';
+
+function getContentType(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case '.html': return 'text/html; charset=utf-8';
+    case '.js': return 'application/javascript; charset=utf-8';
+    case '.css': return 'text/css; charset=utf-8';
+    case '.json': return 'application/json; charset=utf-8';
+    case '.png': return 'image/png';
+    case '.jpg':
+    case '.jpeg': return 'image/jpeg';
+    case '.webp': return 'image/webp';
+    case '.ico': return 'image/x-icon';
+    case '.svg': return 'image/svg+xml';
+    case '.woff2': return 'font/woff2';
+    case '.woff': return 'font/woff';
+    case '.ttf': return 'font/ttf';
+    default: return 'application/octet-stream';
+  }
+}
 
 function parseJsonBody(req: http.IncomingMessage): Promise<any> {
   return new Promise((resolve) => {
@@ -113,16 +135,24 @@ export class OverlayServer {
       }
 
       this.server = http.createServer(async (req, res) => {
-        // Safe CORS policy: allow local origins, reject unauthorized web origins for mutating endpoints
+        // Safe CORS policy: allow local origins and forwarded domain origins
         const origin = req.headers.origin;
+        const host = (req.headers['x-forwarded-host'] || req.headers.host || '') as string;
+        let isSameHost = false;
+        if (origin && host) {
+          try {
+            isSameHost = new URL(origin).host.toLowerCase() === host.toLowerCase();
+          } catch {}
+        }
         const isAllowedOrigin =
           !origin ||
           origin === 'null' ||
+          isSameHost ||
           /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 
-        if (isAllowedOrigin && origin) {
+        if (origin) {
           res.setHeader('Access-Control-Allow-Origin', origin);
-        } else if (!origin) {
+        } else {
           res.setHeader('Access-Control-Allow-Origin', '*');
         }
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -301,14 +331,10 @@ export class OverlayServer {
         }
 
         // --- OBS Overlays HTML ---
-        if (
-          pathname === '/overlay/chat' ||
-          pathname === '/overlay/chats' ||
-          pathname === '/chat' ||
-          pathname === '/chats'
-        ) {
+        if (pathname === '/overlay/chat' || pathname === '/overlay/chats') {
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end(this.renderOverlayHtml('chat'));
+          return;
         } else if (
           pathname === '/overlay/gifts' ||
           pathname === '/overlay/gift' ||
@@ -317,20 +343,41 @@ export class OverlayServer {
         ) {
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end(this.renderOverlayHtml('gifts'));
-        } else if (
-          pathname === '/overlay/all' ||
-          pathname === '/all'
-        ) {
+          return;
+        } else if (pathname === '/overlay/all' || pathname === '/all') {
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end(this.renderOverlayHtml('all'));
+          return;
         } else if (pathname === '/status') {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ status: 'ok', clients: this.wss ? this.wss.clients.size : 0 }));
-        } else {
-          // Landing page with links to overlays
-          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end(this.renderIndexHtml());
+          return;
         }
+
+        // --- Serve React Web Dashboard (dist/) ---
+        const distDir = path.resolve(process.cwd(), 'dist');
+        const cleanPath = url.pathname.replace(/\/+$/, '') || '/';
+        const requestedFile = cleanPath === '/' ? 'index.html' : cleanPath.replace(/^\/+/, '');
+        const filePath = path.join(distDir, requestedFile);
+
+        if (filePath.startsWith(distDir) && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+          const contentType = getContentType(filePath);
+          res.writeHead(200, { 'Content-Type': contentType });
+          fs.createReadStream(filePath).pipe(res);
+          return;
+        }
+
+        // SPA Fallback: if not an API / WS route, serve React app index.html
+        const indexPath = path.join(distDir, 'index.html');
+        if (fs.existsSync(indexPath) && !cleanPath.startsWith('/api/') && !cleanPath.startsWith('/ws')) {
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          fs.createReadStream(indexPath).pipe(res);
+          return;
+        }
+
+        // Fallback landing page
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(this.renderIndexHtml());
       });
 
       // Setup WebSocket Server
@@ -338,7 +385,21 @@ export class OverlayServer {
 
       this.wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
         const origin = req.headers.origin;
-        if (origin && origin !== 'null' && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        const host = (req.headers['x-forwarded-host'] || req.headers.host || '') as string;
+        let isSameHost = false;
+        if (origin && host) {
+          try {
+            isSameHost = new URL(origin).host.toLowerCase() === host.toLowerCase();
+          } catch {}
+        }
+        const isAllowedOrigin =
+          !origin ||
+          origin === 'null' ||
+          isSameHost ||
+          /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+
+        if (!isAllowedOrigin) {
+          eventBus.emit('log', 'warn', `[OverlayServer] Rejected WS connection from unauthorized origin: ${origin}`);
           ws.close(1008, 'Unauthorized origin');
           return;
         }

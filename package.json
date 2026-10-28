@@ -10,7 +10,7 @@
     "dev:web": "concurrently -k \"tsx server.ts\" \"vite\"",
     "server": "tsx server.ts",
     "electron:dev": "npm run build:electron && cross-env NODE_ENV=development VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
-    "build:electron": "tsup electron/main.ts electron/preload.ts --format cjs --out-dir dist-electron --external electron,youtubei.js,tiktok-live-connector,ws",
+    "build:electron": "tsup electron/main.ts electron/preload.ts --format cjs --out-dir dist-electron --external electron,electron-updater,youtubei.js,tiktok-live-connector,ws",
     "build:renderer": "vite build",
     "build": "npm run build:renderer && npm run build:electron",
     "start": "npm run build && cross-env NODE_ENV=production electron .",
@@ -22,6 +22,7 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "clsx": "^2.1.1",
+    "electron-updater": "^6.8.11",
     "lucide-react": "^1.16.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -51,6 +52,13 @@
     "directories": {
       "output": "release"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "PaddlePOPA96",
+        "repo": "youtubechat"
+      }
+    ],
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
@@ -63,6 +71,13 @@
         "nsis",
         "portable"
       ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": false,
+      "differentialPackage": true
     }
   }
 }

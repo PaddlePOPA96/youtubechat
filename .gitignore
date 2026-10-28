@@ -30,6 +30,7 @@ scratch/
 .env.local
 .env.*.local
 *.env
+streamchat-config.json
 
 # Logs
 logs

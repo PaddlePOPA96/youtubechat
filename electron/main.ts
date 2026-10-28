@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import fs from 'fs';
 import { eventBus } from './services/event-bus';
@@ -288,6 +289,68 @@ function registerIpcHandlers() {
     }
     return false;
   });
+
+  // Differential Auto-Updater IPC
+  ipcMain.handle('app:checkForUpdates', async () => {
+    if (!app.isPackaged) return { isPackaged: false, message: 'Running in development mode' };
+    try {
+      const res = await autoUpdater.checkForUpdates();
+      return { success: true, updateInfo: res?.updateInfo };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('app:installUpdate', () => {
+    autoUpdater.quitAndInstall(false, true);
+  });
+}
+
+function setupAutoUpdater() {
+  if (!app.isPackaged) return;
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('checking-for-update', () => {
+    eventBus.emit('log', 'info', '[Updater] Memeriksa patch update terbaru...');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    eventBus.emit('log', 'info', `[Updater] Ditemukan patch update v${info.version}. Mengunduh perbedaan patch...`);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('updater:available', info);
+    }
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    eventBus.emit('log', 'info', '[Updater] Aplikasi sudah versi terbaru.');
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('updater:not-available');
+    }
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('updater:progress', progress);
+    }
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    eventBus.emit('log', 'info', `[Updater] Patch v${info.version} berhasil diunduh dan siap diterapkan saat restart.`);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('updater:downloaded', info);
+    }
+  });
+
+  autoUpdater.on('error', (err) => {
+    eventBus.emit('log', 'warn', `[Updater] Gagal periksa update: ${err.message}`);
+  });
+
+  // Check for updates shortly after start
+  setTimeout(() => {
+    autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+  }, 5000);
 }
 
 // App lifecycle
@@ -298,6 +361,7 @@ app.whenReady().then(async () => {
 
   setupEventForwarding();
   registerIpcHandlers();
+  setupAutoUpdater();
 
   // Load settings & start overlay server
   const settings = settingsStore.getSettings();
