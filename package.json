@@ -1,6 +1,6 @@
 {
   "name": "streamchat-desktop",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Desktop app to unify YouTube and TikTok live chat and stream overlays for OBS",
   "author": "StreamChat",
   "main": "dist-electron/main.js",

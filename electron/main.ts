@@ -386,43 +386,57 @@ function setupAutoUpdater() {
   }, 5000);
 }
 
-// App lifecycle
-app.whenReady().then(async () => {
-  if (process.platform === 'win32') {
-    app.setAppUserModelId('com.streamchat.desktop');
-  }
+// Single instance lock to prevent duplicate apps colliding on port 3210
+const gotTheLock = app.requestSingleInstanceLock();
 
-  setupEventForwarding();
-  registerIpcHandlers();
-  setupAutoUpdater();
-
-  // Load settings & start overlay server
-  const settings = settingsStore.getSettings();
-  overlayServer.updateSettings(settings);
-
-  try {
-    await overlayServer.start(settings.overlayPort || 3210);
-  } catch (err) {
-    console.error('Failed to start overlay server on configured port:', err);
-  }
-
-  createWindow();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
     }
   });
-});
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
+  // App lifecycle
+  app.whenReady().then(async () => {
+    if (process.platform === 'win32') {
+      app.setAppUserModelId('com.streamchat.desktop');
+    }
 
-app.on('before-quit', async () => {
-  youtubeAdapter.disconnect();
-  tiktokAdapter.disconnect();
-  await overlayServer.stop();
-});
+    setupEventForwarding();
+    registerIpcHandlers();
+    setupAutoUpdater();
+
+    // Load settings & start overlay server
+    const settings = settingsStore.getSettings();
+    overlayServer.updateSettings(settings);
+
+    try {
+      await overlayServer.start(settings.overlayPort || 3210);
+    } catch (err) {
+      console.error('Failed to start overlay server on configured port:', err);
+    }
+
+    createWindow();
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit();
+    }
+  });
+
+  app.on('before-quit', async () => {
+    youtubeAdapter.disconnect();
+    tiktokAdapter.disconnect();
+    await overlayServer.stop();
+  });
+}

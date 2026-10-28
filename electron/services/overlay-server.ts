@@ -477,14 +477,8 @@ export class OverlayServer {
 
       this.server.on('error', (err: any) => {
         if (err.code === 'EADDRINUSE') {
-          eventBus.emit('log', 'warn', `[OverlayServer] Port ${this.port} sedang digunakan, mencoba port ${this.port + 1}...`);
-          this.port++;
-          this.currentSettings.overlayPort = this.port;
-          setTimeout(() => {
-            if (this.server) {
-              this.server.listen(this.port, '127.0.0.1');
-            }
-          }, 200);
+          eventBus.emit('log', 'warn', `[OverlayServer] Port ${this.port} sudah digunakan oleh proses lain.`);
+          resolve();
         } else {
           eventBus.emit('log', 'error', `[OverlayServer] Server error on port ${this.port}: ${err.message}`);
           resolve();
